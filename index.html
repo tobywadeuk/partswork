@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dialogue</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f0e8;
+    --paper: #fdfaf4;
+    --ink: #1a1410;
+    --ink-muted: #6b5e4e;
+    --ink-faint: #b8a898;
+    --rule: #e0d8cc;
+    --p1-bg: #e8e0d4;
+    --p2-bg: #dde8e0;
+    --p3-bg: #dde0e8;
+    --p1-dot: #7a6e62;
+    --p2-dot: #5a7a68;
+    --p3-dot: #5a6880;
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+
+  body {
+    font-family: 'Lora', Georgia, serif;
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  /* ── Setup Screen ── */
+  #setup {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    width: 100%;
+    max-width: 420px;
+    padding: 48px 40px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .setup-header h1 {
+    font-family: 'Lora', serif;
+    font-size: 26px;
+    font-weight: 400;
+    color: var(--ink);
+    letter-spacing: -0.5px;
+    line-height: 1.3;
+  }
+
+  .setup-header p {
+    margin-top: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-muted);
+    letter-spacing: 0.02em;
+  }
+
+  .name-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .name-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .person-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .name-row input {
+    flex: 1;
+    border: none;
+    border-bottom: 1px solid var(--rule);
+    background: transparent;
+    font-family: 'Lora', serif;
+    font-size: 15px;
+    color: var(--ink);
+    padding: 8px 2px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .name-row input:focus { border-bottom-color: var(--ink-muted); }
+  .name-row input::placeholder { color: var(--ink-faint); font-style: italic; }
+
+  .start-btn {
+    align-self: flex-start;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 11px 24px;
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .start-btn:hover { opacity: 0.82; }
+
+  /* ── Chat App ── */
+  #app {
+    display: none;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    width: 100%;
+    max-width: 560px;
+    height: min(720px, 92vh);
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Header */
+  .app-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .header-people {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .header-person {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-muted);
+    letter-spacing: 0.04em;
+  }
+
+  .header-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  .reset-link {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-faint);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    letter-spacing: 0.04em;
+    transition: color 0.2s;
+  }
+
+  .reset-link:hover { color: var(--ink-muted); }
+
+  /* Messages */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scroll-behavior: smooth;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
+
+  .empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Lora', serif;
+    font-size: 14px;
+    font-style: italic;
+    color: var(--ink-faint);
+  }
+
+  .msg-wrap {
+    display: flex;
+    flex-direction: column;
+    max-width: 72%;
+    animation: fadeUp 0.2s ease;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg-wrap.left  { align-self: flex-start; }
+  .msg-wrap.mid   { align-self: center; }
+  .msg-wrap.right { align-self: flex-end; }
+
+  .msg-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+    padding: 0 4px;
+  }
+
+  .msg-wrap.right .msg-name { text-align: right; }
+  .msg-wrap.mid   .msg-name { text-align: center; }
+
+  .msg-bubble {
+    font-family: 'Lora', serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink);
+    padding: 10px 14px;
+    border-radius: 12px;
+    word-break: break-word;
+  }
+
+  .msg-wrap.left  .msg-bubble { background: var(--p1-bg); border-bottom-left-radius: 3px; }
+  .msg-wrap.mid   .msg-bubble { background: var(--p2-bg); }
+  .msg-wrap.right .msg-bubble { background: var(--p3-bg); border-bottom-right-radius: 3px; }
+
+  /* Date dividers */
+  .divider {
+    align-self: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0.06em;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 20px;
+    padding: 3px 12px;
+    margin: 6px 0;
+  }
+
+  /* Bottom */
+  .bottom {
+    border-top: 1px solid var(--rule);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .speaker-row {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .speaker-row::-webkit-scrollbar { display: none; }
+
+  .speaker-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--rule);
+    background: transparent;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+  }
+
+  .speaker-btn .s-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  .speaker-btn.active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .msg-input {
+    flex: 1;
+    font-family: 'Lora', serif;
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 20px;
+    padding: 9px 16px;
+    outline: none;
+    transition: border-color 0.2s;
+    min-width: 0;
+  }
+
+  .msg-input:focus { border-color: var(--ink-muted); }
+  .msg-input::placeholder { color: var(--ink-faint); font-style: italic; }
+
+  .send-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--rule);
+    background: var(--ink);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+  }
+
+  .send-btn:hover { opacity: 0.8; }
+
+  .send-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: var(--paper);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    body { padding: 0; align-items: flex-end; }
+    #setup { border-radius: var(--radius) var(--radius) 0 0; padding: 36px 24px 32px; max-width: 100%; }
+    #app { border-radius: var(--radius) var(--radius) 0 0; height: 96vh; max-width: 100%; }
+    .msg-wrap { max-width: 82%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Setup Screen -->
+<div id="setup">
+  <div class="setup-header">
+    <h1>Start a dialogue</h1>
+    <p>Name the three voices in this conversation</p>
+  </div>
+  <div class="name-fields">
+    <div class="name-row">
+      <div class="person-dot" style="background: var(--p1-dot);"></div>
+      <input id="n1" type="text" placeholder="First person" maxlength="28" autocomplete="off" />
+    </div>
+    <div class="name-row">
+      <div class="person-dot" style="background: var(--p2-dot);"></div>
+      <input id="n2" type="text" placeholder="Second person" maxlength="28" autocomplete="off" />
+    </div>
+    <div class="name-row">
+      <div class="person-dot" style="background: var(--p3-dot);"></div>
+      <input id="n3" type="text" placeholder="Third person" maxlength="28" autocomplete="off" />
+    </div>
+  </div>
+  <button class="start-btn" onclick="startChat()">Begin →</button>
+</div>
+
+<!-- Chat App -->
+<div id="app">
+  <div class="app-header">
+    <div class="header-people" id="header-people"></div>
+    <button class="reset-link" onclick="resetAll()">reset</button>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="empty" id="empty-msg">The conversation begins here.</div>
+  </div>
+
+  <div class="bottom">
+    <div class="speaker-row" id="speaker-row"></div>
+    <div class="input-row">
+      <input class="msg-input" id="msg-input" type="text" placeholder="Write something…" autocomplete="off" />
+      <button class="send-btn" onclick="sendMsg()">
+        <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const COLORS = {
+    dot:  ['var(--p1-dot)',  'var(--p2-dot)',  'var(--p3-dot)'],
+    pos:  ['left',           'mid',            'right'],
+  };
+
+  let names = [];
+  let active = 0;
+  let messages = [];
+
+  // Allow Enter key in setup
+  document.querySelectorAll('#setup input').forEach((el, i, all) => {
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        if (i < all.length - 1) all[i + 1].focus();
+        else startChat();
+      }
+    });
+  });
+
+  document.getElementById('msg-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendMsg();
+  });
+
+  function startChat() {
+    const v1 = document.getElementById('n1').value.trim();
+    const v2 = document.getElementById('n2').value.trim();
+    const v3 = document.getElementById('n3').value.trim();
+    names = [
+      v1 || 'Person one',
+      v2 || 'Person two',
+      v3 || 'Person three',
+    ];
+    document.getElementById('setup').style.display = 'none';
+    const app = document.getElementById('app');
+    app.style.display = 'flex';
+
+    buildHeader();
+    buildSpeakerRow();
+    setActive(0);
+    document.getElementById('msg-input').focus();
+  }
+
+  function buildHeader() {
+    const c = document.getElementById('header-people');
+    c.innerHTML = names.map((n, i) => `
+      <div class="header-person">
+        <div class="header-dot" style="background:${COLORS.dot[i]};"></div>
+        ${escHtml(n)}
+      </div>`).join('');
+  }
+
+  function buildSpeakerRow() {
+    const row = document.getElementById('speaker-row');
+    row.innerHTML = names.map((n, i) => `
+      <button class="speaker-btn" id="tab-${i}" onclick="setActive(${i})">
+        <span class="s-dot" style="background:${COLORS.dot[i]};"></span>
+        ${escHtml(n)}
+      </button>`).join('');
+  }
+
+  function setActive(idx) {
+    active = idx;
+    document.querySelectorAll('.speaker-btn').forEach((b, i) => {
+      b.classList.toggle('active', i === idx);
+    });
+    const input = document.getElementById('msg-input');
+    input.placeholder = `Speaking as ${names[idx]}…`;
+    input.focus();
+  }
+
+  function sendMsg() {
+    const input = document.getElementById('msg-input');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+
+    const empty = document.getElementById('empty-msg');
+    if (empty) empty.remove();
+
+    messages.push({ person: active, text });
+
+    const wrap = document.createElement('div');
+    wrap.className = `msg-wrap ${COLORS.pos[active]}`;
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'msg-name';
+    nameEl.textContent = names[active];
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.textContent = text;
+
+    wrap.appendChild(nameEl);
+    wrap.appendChild(bubble);
+
+    const msgs = document.getElementById('messages');
+    msgs.appendChild(wrap);
+    msgs.scrollTop = msgs.scrollHeight;
+
+    input.focus();
+  }
+
+  function resetAll() {
+    if (!confirm('Clear the conversation and start over?')) return;
+    messages = [];
+    names = [];
+    active = 0;
+
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('messages').innerHTML = '<div class="empty" id="empty-msg">The conversation begins here.</div>';
+    document.getElementById('header-people').innerHTML = '';
+    document.getElementById('speaker-row').innerHTML = '';
+    document.getElementById('n1').value = '';
+    document.getElementById('n2').value = '';
+    document.getElementById('n3').value = '';
+
+    const setup = document.getElementById('setup');
+    setup.style.display = 'flex';
+    document.getElementById('n1').focus();
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>

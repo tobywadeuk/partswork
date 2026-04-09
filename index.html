@@ -15,12 +15,6 @@
     --ink-muted: #6b5e4e;
     --ink-faint: #b8a898;
     --rule: #e0d8cc;
-    --p1-bg: #e8e0d4;
-    --p2-bg: #dde8e0;
-    --p3-bg: #dde0e8;
-    --p1-dot: #7a6e62;
-    --p2-dot: #5a7a68;
-    --p3-dot: #5a6880;
     --radius: 14px;
     --radius-sm: 8px;
   }
@@ -100,8 +94,54 @@
   .name-row input:focus { border-bottom-color: var(--ink-muted); }
   .name-row input::placeholder { color: var(--ink-faint); font-style: italic; }
 
-  .start-btn {
+  .remove-field-btn {
+    background: none;
+    border: none;
+    color: var(--ink-faint);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 4px;
+    transition: color 0.15s;
+    flex-shrink: 0;
+  }
+
+  .remove-field-btn:hover { color: var(--ink-muted); }
+
+  .add-field-btn {
     align-self: flex-start;
+    background: none;
+    border: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--ink-faint);
+    cursor: pointer;
+    padding: 2px 0;
+    position: relative;
+    transition: color 0.2s;
+  }
+
+  .add-field-btn::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 0; height: 1px;
+    background: var(--ink-muted);
+    transition: width 0.2s;
+  }
+
+  .add-field-btn:hover { color: var(--ink-muted); }
+  .add-field-btn:hover::after { width: 100%; }
+
+  .setup-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .start-btn {
     font-family: 'DM Mono', monospace;
     font-size: 12px;
     letter-spacing: 0.08em;
@@ -117,6 +157,31 @@
 
   .start-btn:hover { opacity: 0.82; }
 
+  .load-convo-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--ink-faint);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 0;
+    transition: color 0.2s;
+    position: relative;
+  }
+
+  .load-convo-btn::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 0; height: 1px;
+    background: var(--ink-muted);
+    transition: width 0.2s;
+  }
+
+  .load-convo-btn:hover { color: var(--ink-muted); }
+  .load-convo-btn:hover::after { width: 100%; }
+
   /* ── Chat App ── */
   #app {
     display: none;
@@ -130,7 +195,6 @@
     overflow: hidden;
   }
 
-  /* Header */
   .app-header {
     padding: 14px 18px;
     border-bottom: 1px solid var(--rule);
@@ -161,7 +225,13 @@
     border-radius: 50%;
   }
 
-  .reset-link {
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header-btn {
     font-family: 'DM Mono', monospace;
     font-size: 11px;
     color: var(--ink-faint);
@@ -173,7 +243,54 @@
     transition: color 0.2s;
   }
 
-  .reset-link:hover { color: var(--ink-muted); }
+  .header-btn:hover { color: var(--ink-muted); }
+
+  /* Prompt bar */
+  #prompt-bar {
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--paper);
+    min-height: 44px;
+  }
+
+  #prompt-text {
+    flex: 1;
+    font-family: 'Lora', serif;
+    font-size: 13px;
+    font-style: italic;
+    color: var(--ink-muted);
+    line-height: 1.4;
+    transition: opacity 0.35s ease;
+    opacity: 0;
+  }
+
+  #prompt-text.visible { opacity: 1; }
+
+  #prompt-text.placeholder {
+    color: var(--ink-faint);
+    font-size: 12px;
+    opacity: 1;
+  }
+
+  #prompt-btn {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    color: var(--ink-muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  #prompt-btn:hover { border-color: var(--ink-muted); color: var(--ink); }
 
   /* Messages */
   .messages {
@@ -239,23 +356,9 @@
     word-break: break-word;
   }
 
-  .msg-wrap.left  .msg-bubble { background: var(--p1-bg); border-bottom-left-radius: 3px; }
-  .msg-wrap.mid   .msg-bubble { background: var(--p2-bg); }
-  .msg-wrap.right .msg-bubble { background: var(--p3-bg); border-bottom-right-radius: 3px; }
-
-  /* Date dividers */
-  .divider {
-    align-self: center;
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    color: var(--ink-faint);
-    letter-spacing: 0.06em;
-    background: var(--bg);
-    border: 1px solid var(--rule);
-    border-radius: 20px;
-    padding: 3px 12px;
-    margin: 6px 0;
-  }
+  /* bubble corner tails set via position class — background set inline */
+  .msg-wrap.left  .msg-bubble { border-bottom-left-radius: 3px; }
+  .msg-wrap.right .msg-bubble { border-bottom-right-radius: 3px; }
 
   /* Bottom */
   .bottom {
@@ -271,6 +374,7 @@
     gap: 6px;
     overflow-x: auto;
     padding-bottom: 2px;
+    align-items: center;
   }
 
   .speaker-row::-webkit-scrollbar { display: none; }
@@ -303,6 +407,30 @@
     color: var(--paper);
     border-color: var(--ink);
   }
+
+  .speaker-add-btn {
+    color: var(--ink-faint);
+    padding: 6px 10px;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .speaker-add-btn:hover { color: var(--ink-muted); border-color: var(--ink-faint); }
+
+  .speaker-new-input {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--ink-muted);
+    background: transparent;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--ink);
+    outline: none;
+    width: 130px;
+    flex-shrink: 0;
+  }
+
+  .speaker-new-input::placeholder { color: var(--ink-faint); font-style: italic; }
 
   .input-row {
     display: flex;
@@ -368,30 +496,29 @@
 <div id="setup">
   <div class="setup-header">
     <h1>Start a dialogue</h1>
-    <p>Name the three voices in this conversation</p>
+    <p id="setup-subtitle">Name the voices in this conversation</p>
   </div>
-  <div class="name-fields">
-    <div class="name-row">
-      <div class="person-dot" style="background: var(--p1-dot);"></div>
-      <input id="n1" type="text" placeholder="First person" maxlength="28" autocomplete="off" />
-    </div>
-    <div class="name-row">
-      <div class="person-dot" style="background: var(--p2-dot);"></div>
-      <input id="n2" type="text" placeholder="Second person" maxlength="28" autocomplete="off" />
-    </div>
-    <div class="name-row">
-      <div class="person-dot" style="background: var(--p3-dot);"></div>
-      <input id="n3" type="text" placeholder="Third person" maxlength="28" autocomplete="off" />
-    </div>
+  <div class="name-fields" id="name-fields"></div>
+  <div class="setup-actions">
+    <button class="start-btn" onclick="startChat()">Begin →</button>
+    <button class="load-convo-btn" id="load-convo-btn">load conversation</button>
   </div>
-  <button class="start-btn" onclick="startChat()">Begin →</button>
+  <input type="file" id="load-convo-file" accept=".txt" hidden />
 </div>
 
 <!-- Chat App -->
 <div id="app">
   <div class="app-header">
     <div class="header-people" id="header-people"></div>
-    <button class="reset-link" onclick="resetAll()">reset</button>
+    <div class="header-controls">
+      <button class="header-btn" id="save-btn">save</button>
+      <button class="header-btn" onclick="resetAll()">reset</button>
+    </div>
+  </div>
+
+  <div id="prompt-bar">
+    <div id="prompt-text" class="placeholder">press prompt for a question</div>
+    <button id="prompt-btn">Prompt</button>
   </div>
 
   <div class="messages" id="messages">
@@ -410,64 +537,274 @@
 </div>
 
 <script>
-  const COLORS = {
-    dot:  ['var(--p1-dot)',  'var(--p2-dot)',  'var(--p3-dot)'],
-    pos:  ['left',           'mid',            'right'],
-  };
+  const MAX_PEOPLE = 6;
+
+  const PALETTE = [
+    { dot: '#7a6e62', bg: '#e8e0d4' },
+    { dot: '#5a7a68', bg: '#dde8e0' },
+    { dot: '#5a6880', bg: '#dde0e8' },
+    { dot: '#7a5a6a', bg: '#e8dde2' },
+    { dot: '#72725a', bg: '#e6e6da' },
+    { dot: '#5a7878', bg: '#dde6e6' },
+  ];
+
+  // Positions: first two people get left/right (most natural for dialogue),
+  // further people cycle through all three.
+  const POSITIONS = ['left', 'right', 'mid'];
+
+  function palette(idx) { return PALETTE[idx % PALETTE.length]; }
+  function position(idx) { return POSITIONS[idx % POSITIONS.length]; }
 
   let names = [];
   let active = 0;
   let messages = [];
 
-  // Allow Enter key in setup
-  document.querySelectorAll('#setup input').forEach((el, i, all) => {
-    el.addEventListener('keydown', e => {
-      if (e.key === 'Enter') {
-        if (i < all.length - 1) all[i + 1].focus();
-        else startChat();
+  // ── Setup: dynamic name fields ──
+  let setupCount = 2;
+
+  function renderNameFields() {
+    const container = document.getElementById('name-fields');
+    // Preserve any values already typed before wiping the DOM
+    const saved = Array.from(container.querySelectorAll('input')).map(el => el.value);
+    container.innerHTML = '';
+
+    for (let i = 0; i < setupCount; i++) {
+      const row = document.createElement('div');
+      row.className = 'name-row';
+
+      const dot = document.createElement('div');
+      dot.className = 'person-dot';
+      dot.style.background = palette(i).dot;
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.dataset.idx = i;
+      input.placeholder = `Person ${i + 1}`;
+      input.maxLength = 28;
+      input.autocomplete = 'off';
+      if (saved[i]) input.value = saved[i];
+      input.addEventListener('keydown', handleSetupKey);
+
+      row.appendChild(dot);
+      row.appendChild(input);
+
+      if (setupCount > 1) {
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-field-btn';
+        removeBtn.textContent = '×';
+        removeBtn.title = 'Remove person';
+        removeBtn.addEventListener('click', () => {
+          setupCount--;
+          renderNameFields();
+        });
+        row.appendChild(removeBtn);
       }
-    });
+
+      container.appendChild(row);
+    }
+
+    if (setupCount < MAX_PEOPLE) {
+      const addBtn = document.createElement('button');
+      addBtn.className = 'add-field-btn';
+      addBtn.textContent = '+ add person';
+      addBtn.addEventListener('click', () => {
+        setupCount++;
+        renderNameFields();
+        // Focus the new field
+        const inputs = document.querySelectorAll('#name-fields input');
+        inputs[inputs.length - 1].focus();
+      });
+      container.appendChild(addBtn);
+    }
+  }
+
+  function handleSetupKey(e) {
+    const inputs = Array.from(document.querySelectorAll('#name-fields input'));
+    const i = inputs.indexOf(e.target);
+    if (e.key === 'Enter') {
+      if (i < inputs.length - 1) inputs[i + 1].focus();
+      else startChat();
+    }
+  }
+
+  renderNameFields();
+
+  // ── Prompts ──
+  const prompts = [
+    "What if everything you think you know about this is wrong?",
+    "What would it feel like to have no idea what this actually is?",
+    "What part of this are you most resistant to being curious about?",
+    "What would change if you approached this like you'd never seen it before?",
+    "What is the positive quality hiding inside this thing you dislike about yourself?",
+    "What does this part of you actually want for you, underneath all of it?",
+    "What is this pattern protecting you from?",
+    "What exact words, sensations, or images are actually here right now?",
+    "What are you actually feeling versus what are you telling yourself you're feeling?",
+    "What is this trying to become?",
+    "Where is this naturally wanting to go if you stop controlling it?",
+    "What is the next small movement this wants to make?",
+    "Where are you placing yourself in relation to this — above, below, or alongside?",
+    "What would it feel like to be on the same level as this?",
+    "What would change if you stopped trying to fix this and just walked beside it?",
+  ];
+
+  let lastPromptIdx = -1;
+
+  document.getElementById('prompt-btn').addEventListener('click', () => {
+    let idx;
+    do { idx = Math.floor(Math.random() * prompts.length); } while (idx === lastPromptIdx && prompts.length > 1);
+    lastPromptIdx = idx;
+
+    const el = document.getElementById('prompt-text');
+    el.classList.remove('visible', 'placeholder');
+    void el.offsetWidth;
+    el.textContent = prompts[idx];
+    el.classList.add('visible');
   });
 
+  // ── Load conversation ──
+  document.getElementById('load-convo-btn').addEventListener('click', () => {
+    document.getElementById('load-convo-file').click();
+  });
+
+  document.getElementById('load-convo-file').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const lines = ev.target.result.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const nameOrder = [];
+      const parsed = [];
+
+      for (const line of lines) {
+        const m = line.match(/^(.+?):\s+(.+)$/);
+        if (!m) continue;
+        const [, name, text] = m;
+        if (!nameOrder.includes(name) && nameOrder.length < MAX_PEOPLE) nameOrder.push(name);
+        if (nameOrder.includes(name)) {
+          parsed.push({ person: nameOrder.indexOf(name), text });
+        }
+      }
+
+      if (parsed.length === 0) return;
+
+      setupCount = nameOrder.length;
+      renderNameFields();
+
+      const inputs = document.querySelectorAll('#name-fields input');
+      nameOrder.forEach((name, i) => { if (inputs[i]) inputs[i].value = name; });
+
+      startChat(parsed);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  // ── Save conversation ──
+  document.getElementById('save-btn').addEventListener('click', () => {
+    const lines = messages.map(m => `${names[m.person]}: ${m.text}`).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([lines], { type: 'text/plain' }));
+    a.download = 'dialogue.txt';
+    a.click();
+  });
+
+  // ── Start chat ──
   document.getElementById('msg-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') sendMsg();
   });
 
-  function startChat() {
-    const v1 = document.getElementById('n1').value.trim();
-    const v2 = document.getElementById('n2').value.trim();
-    const v3 = document.getElementById('n3').value.trim();
-    names = [
-      v1 || 'Person one',
-      v2 || 'Person two',
-      v3 || 'Person three',
-    ];
+  function startChat(loadedMessages) {
+    const inputs = document.querySelectorAll('#name-fields input');
+    names = Array.from(inputs).map((el, i) => el.value.trim() || `Person ${i + 1}`);
+    messages = [];
+
     document.getElementById('setup').style.display = 'none';
-    const app = document.getElementById('app');
-    app.style.display = 'flex';
+    document.getElementById('app').style.display = 'flex';
 
     buildHeader();
     buildSpeakerRow();
     setActive(0);
+
+    if (loadedMessages && loadedMessages.length > 0) {
+      const empty = document.getElementById('empty-msg');
+      if (empty) empty.remove();
+      for (const m of loadedMessages) appendMessage(m.person, m.text, false);
+      document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    }
+
     document.getElementById('msg-input').focus();
   }
 
   function buildHeader() {
-    const c = document.getElementById('header-people');
-    c.innerHTML = names.map((n, i) => `
+    document.getElementById('header-people').innerHTML = names.map((n, i) => `
       <div class="header-person">
-        <div class="header-dot" style="background:${COLORS.dot[i]};"></div>
+        <div class="header-dot" style="background:${palette(i).dot};"></div>
         ${escHtml(n)}
       </div>`).join('');
   }
 
   function buildSpeakerRow() {
     const row = document.getElementById('speaker-row');
-    row.innerHTML = names.map((n, i) => `
-      <button class="speaker-btn" id="tab-${i}" onclick="setActive(${i})">
-        <span class="s-dot" style="background:${COLORS.dot[i]};"></span>
-        ${escHtml(n)}
-      </button>`).join('');
+    row.innerHTML = '';
+
+    names.forEach((n, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'speaker-btn' + (i === active ? ' active' : '');
+      btn.id = `tab-${i}`;
+      btn.innerHTML = `<span class="s-dot" style="background:${palette(i).dot};"></span>${escHtml(n)}`;
+      btn.addEventListener('click', () => setActive(i));
+      row.appendChild(btn);
+    });
+
+    if (names.length < MAX_PEOPLE) {
+      const addBtn = document.createElement('button');
+      addBtn.className = 'speaker-btn speaker-add-btn';
+      addBtn.textContent = '+';
+      addBtn.title = 'Add a person';
+      addBtn.addEventListener('click', showAddSpeakerInput);
+      row.appendChild(addBtn);
+    }
+  }
+
+  function showAddSpeakerInput() {
+    const row = document.getElementById('speaker-row');
+    // Remove the + button
+    const addBtn = row.querySelector('.speaker-add-btn');
+    if (addBtn) addBtn.remove();
+
+    const input = document.createElement('input');
+    input.className = 'speaker-new-input';
+    input.placeholder = 'name…';
+    input.maxLength = 28;
+    input.autocomplete = 'off';
+
+    let done = false;
+
+    function confirm() {
+      if (done) return;
+      done = true;
+      const name = input.value.trim();
+      input.remove();
+      if (name) {
+        names.push(name);
+        buildHeader();
+        buildSpeakerRow();
+        setActive(names.length - 1);
+      } else {
+        buildSpeakerRow();
+      }
+    }
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') confirm();
+      if (e.key === 'Escape') { done = true; input.remove(); buildSpeakerRow(); }
+    });
+
+    input.addEventListener('blur', () => setTimeout(confirm, 100));
+
+    row.appendChild(input);
+    input.focus();
   }
 
   function setActive(idx) {
@@ -480,6 +817,30 @@
     input.focus();
   }
 
+  function appendMessage(personIdx, text, animate = true) {
+    messages.push({ person: personIdx, text });
+
+    const pos = position(personIdx);
+    const col = palette(personIdx);
+
+    const wrap = document.createElement('div');
+    wrap.className = `msg-wrap ${pos}`;
+    if (!animate) wrap.style.animation = 'none';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'msg-name';
+    nameEl.textContent = names[personIdx];
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.style.background = col.bg;
+    bubble.textContent = text;
+
+    wrap.appendChild(nameEl);
+    wrap.appendChild(bubble);
+    document.getElementById('messages').appendChild(wrap);
+  }
+
   function sendMsg() {
     const input = document.getElementById('msg-input');
     const text = input.value.trim();
@@ -489,26 +850,10 @@
     const empty = document.getElementById('empty-msg');
     if (empty) empty.remove();
 
-    messages.push({ person: active, text });
-
-    const wrap = document.createElement('div');
-    wrap.className = `msg-wrap ${COLORS.pos[active]}`;
-
-    const nameEl = document.createElement('div');
-    nameEl.className = 'msg-name';
-    nameEl.textContent = names[active];
-
-    const bubble = document.createElement('div');
-    bubble.className = 'msg-bubble';
-    bubble.textContent = text;
-
-    wrap.appendChild(nameEl);
-    wrap.appendChild(bubble);
+    appendMessage(active, text);
 
     const msgs = document.getElementById('messages');
-    msgs.appendChild(wrap);
     msgs.scrollTop = msgs.scrollHeight;
-
     input.focus();
   }
 
@@ -517,18 +862,20 @@
     messages = [];
     names = [];
     active = 0;
+    setupCount = 2;
 
     document.getElementById('app').style.display = 'none';
     document.getElementById('messages').innerHTML = '<div class="empty" id="empty-msg">The conversation begins here.</div>';
     document.getElementById('header-people').innerHTML = '';
-    document.getElementById('speaker-row').innerHTML = '';
-    document.getElementById('n1').value = '';
-    document.getElementById('n2').value = '';
-    document.getElementById('n3').value = '';
 
-    const setup = document.getElementById('setup');
-    setup.style.display = 'flex';
-    document.getElementById('n1').focus();
+    const promptEl = document.getElementById('prompt-text');
+    promptEl.textContent = 'press prompt for a question';
+    promptEl.className = 'placeholder';
+    lastPromptIdx = -1;
+
+    renderNameFields();
+    document.getElementById('setup').style.display = 'flex';
+    document.querySelector('#name-fields input').focus();
   }
 
   function escHtml(str) {

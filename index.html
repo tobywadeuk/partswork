@@ -614,7 +614,7 @@
     if (setupCount < MAX_PEOPLE) {
       const addBtn = document.createElement('button');
       addBtn.className = 'add-field-btn';
-      addBtn.textContent = '+ add person';
+      addBtn.textContent = `+ add ${placeholderTerm.toLowerCase()}`;
       addBtn.addEventListener('click', () => {
         setupCount++;
         renderNameFields();
@@ -790,7 +790,7 @@
       const addBtn = document.createElement('button');
       addBtn.className = 'speaker-btn speaker-add-btn';
       addBtn.textContent = '+';
-      addBtn.title = 'Add a person';
+      addBtn.title = `Add a ${placeholderTerm.toLowerCase()}`;
       addBtn.addEventListener('click', showAddSpeakerInput);
       row.appendChild(addBtn);
     }

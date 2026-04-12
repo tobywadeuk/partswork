@@ -878,6 +878,15 @@
     document.querySelector('#name-fields input').focus();
   }
 
+  document.addEventListener('keydown', e => {
+    if (!e.metaKey) return;
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= names.length && document.getElementById('app').style.display !== 'none') {
+      e.preventDefault();
+      setActive(n - 1);
+    }
+  });
+
   function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }

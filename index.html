@@ -355,11 +355,39 @@
     padding: 10px 14px;
     border-radius: 12px;
     word-break: break-word;
+    position: relative;
   }
 
   /* bubble corner tails set via position class — background set inline */
   .msg-wrap.left  .msg-bubble { border-bottom-left-radius: 3px; }
   .msg-wrap.right .msg-bubble { border-bottom-right-radius: 3px; }
+
+  .msg-actions {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s;
+  }
+  .msg-wrap.right .msg-actions { right: auto; left: 7px; }
+  .msg-wrap:hover .msg-actions { opacity: 1; pointer-events: auto; }
+
+  .msg-action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 3px;
+    color: var(--ink-faint);
+    line-height: 0;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .msg-action-btn:hover { color: var(--ink-muted); background: rgba(0,0,0,0.06); }
+
+  .msg-text[contenteditable="true"] { outline: none; }
 
   /* Bottom */
   .bottom {
@@ -515,7 +543,8 @@
   <div class="app-header">
     <div class="header-people" id="header-people"></div>
     <div class="header-controls">
-      <button class="header-btn" id="save-btn">save</button>
+      <button class="header-btn" id="image-btn">image</button>
+      <button class="header-btn" id="save-btn">txt</button>
       <button class="header-btn" onclick="resetAll()">reset</button>
     </div>
   </div>
@@ -727,14 +756,164 @@
     if (file) loadConversationFile(file);
   });
 
-  // ── Save conversation ──
-  document.getElementById('save-btn').addEventListener('click', () => {
-    const lines = messages.map(m => `${names[m.person]}: ${m.text}`).join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([lines], { type: 'text/plain' }));
+  // ── Export as image ──
+  function dialogueFilename() {
     const joined = names.length === 1 ? names[0]
       : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
-    a.download = `dialogue between ${joined}.txt`;
+    return `dialogue between ${joined}`;
+  }
+
+  document.getElementById('image-btn').addEventListener('click', async () => {
+    await document.fonts.ready;
+
+    const SCALE  = 2;
+    const W      = 560;
+    const PAD_H  = 32;
+    const PAD_V  = 28;
+    const MAX_BW = Math.round(W * 0.70);
+    const BPX    = 14;   // bubble padding x
+    const BPY    = 10;   // bubble padding y
+    const R      = 12;   // corner radius
+    const TAIL_R = 3;    // tail corner
+    const NAME_H = 20;   // name label + gap
+    const MSG_GAP = 10;
+    const TEXT_SIZE = 14;
+    const TEXT_LH   = TEXT_SIZE * 1.62;
+    const HEADER_H  = 44;
+
+    // Measure on a scratch canvas
+    const scratch = document.createElement('canvas').getContext('2d');
+
+    function wrapText(text, maxW) {
+      scratch.font = `400 ${TEXT_SIZE}px 'Lora', Georgia, serif`;
+      const words = text.split(' ');
+      const lines = [];
+      let line = '';
+      for (const w of words) {
+        const test = line ? `${line} ${w}` : w;
+        if (scratch.measureText(test).width > maxW - BPX * 2 && line) {
+          lines.push(line); line = w;
+        } else { line = test; }
+      }
+      if (line) lines.push(line);
+      return lines;
+    }
+
+    // Pre-compute each message
+    const items = messages.map(m => {
+      const lines     = wrapText(m.text, MAX_BW);
+      const textBlockH = (lines.length - 1) * TEXT_LH + TEXT_SIZE;
+      const bubbleH    = BPY * 2 + textBlockH;
+      scratch.font = `400 ${TEXT_SIZE}px 'Lora', Georgia, serif`;
+      const maxLineW = Math.max(...lines.map(l => scratch.measureText(l).width));
+      const bubbleW  = Math.min(MAX_BW, maxLineW + BPX * 2 + 4);
+      return { ...m, lines, bubbleH, bubbleW };
+    });
+
+    const totalH = HEADER_H + PAD_V
+      + items.reduce((s, it) => s + NAME_H + it.bubbleH + MSG_GAP, 0)
+      + PAD_V - MSG_GAP;
+
+    const canvas = document.createElement('canvas');
+    canvas.width  = W * SCALE;
+    canvas.height = totalH * SCALE;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(SCALE, SCALE);
+
+    // Background
+    ctx.fillStyle = '#fdfaf4';
+    ctx.fillRect(0, 0, W, totalH);
+
+    // Header rule
+    ctx.fillStyle = '#e0d8cc';
+    ctx.fillRect(0, HEADER_H - 1, W, 1);
+
+    // Header: dots + names
+    let hx = PAD_H;
+    ctx.textBaseline = 'middle';
+    names.forEach((name, i) => {
+      const col = palette(i);
+      ctx.fillStyle = col.dot;
+      ctx.beginPath();
+      ctx.arc(hx + 3.5, HEADER_H / 2, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.font = `400 11px 'DM Mono', monospace`;
+      ctx.fillStyle = '#6b5e4e';
+      ctx.fillText(name, hx + 12, HEADER_H / 2);
+      hx += 12 + ctx.measureText(name).width + 18;
+    });
+
+    // Messages
+    let y = HEADER_H + PAD_V;
+    for (const m of items) {
+      const pos = position(m.person);
+      const col = palette(m.person);
+
+      let bx;
+      if (pos === 'left')       bx = PAD_H;
+      else if (pos === 'right') bx = W - PAD_H - m.bubbleW;
+      else                      bx = (W - m.bubbleW) / 2;
+
+      // Name label
+      ctx.font = `400 10px 'DM Mono', monospace`;
+      ctx.fillStyle = '#b8a898';
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = pos === 'right' ? 'right' : pos === 'mid' ? 'center' : 'left';
+      const nameX = pos === 'right' ? bx + m.bubbleW
+                  : pos === 'mid'   ? bx + m.bubbleW / 2
+                  : bx + 4;
+      ctx.fillText(names[m.person], nameX, y + 12);
+
+      // Bubble
+      const by  = y + NAME_H;
+      const blr = pos === 'left'  ? TAIL_R : R;
+      const brr = pos === 'right' ? TAIL_R : R;
+      ctx.fillStyle = col.bg;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(bx, by, m.bubbleW, m.bubbleH, [R, R, brr, blr]);
+      } else {
+        ctx.moveTo(bx + R, by);
+        ctx.lineTo(bx + m.bubbleW - R, by);
+        ctx.quadraticCurveTo(bx + m.bubbleW, by, bx + m.bubbleW, by + R);
+        ctx.lineTo(bx + m.bubbleW, by + m.bubbleH - brr);
+        ctx.quadraticCurveTo(bx + m.bubbleW, by + m.bubbleH, bx + m.bubbleW - brr, by + m.bubbleH);
+        ctx.lineTo(bx + blr, by + m.bubbleH);
+        ctx.quadraticCurveTo(bx, by + m.bubbleH, bx, by + m.bubbleH - blr);
+        ctx.lineTo(bx, by + R);
+        ctx.quadraticCurveTo(bx, by, bx + R, by);
+        ctx.closePath();
+      }
+      ctx.fill();
+
+      // Text
+      ctx.font = `400 ${TEXT_SIZE}px 'Lora', Georgia, serif`;
+      ctx.fillStyle = '#1a1410';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      m.lines.forEach((line, i) => {
+        ctx.fillText(line, bx + BPX, by + BPY + i * TEXT_LH);
+      });
+
+      y += NAME_H + m.bubbleH + MSG_GAP;
+    }
+
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.download = `${dialogueFilename()}.png`;
+      a.href = URL.createObjectURL(blob);
+      a.click();
+    }, 'image/png');
+  });
+
+  // ── Save conversation ──
+  document.getElementById('save-btn').addEventListener('click', () => {
+    const title = dialogueFilename();
+    const rule  = '—'.repeat(Math.max(32, title.length + 8));
+    const body  = messages.map(m => `${names[m.person]}: ${m.text}`).join('\n\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([`${title}\n${rule}\n\n${body}\n\n${rule}`], { type: 'text/plain' }));
+    a.download = `${title}.txt`;
     a.click();
   });
 
@@ -868,7 +1047,32 @@
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
     bubble.style.background = col.bg;
-    bubble.textContent = text;
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'msg-text';
+    textSpan.textContent = text;
+    bubble.appendChild(textSpan);
+
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'msg-action-btn';
+    editBtn.title = 'Edit';
+    editBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l2 2-5.5 5.5H3v-1.5L8 2z"/></svg>`;
+    editBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    editBtn.addEventListener('click', () => editMessage(msgIdx, bubble));
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'msg-action-btn';
+    delBtn.title = 'Delete';
+    delBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>`;
+    delBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    delBtn.addEventListener('click', () => deleteMessage(msgIdx));
+
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+    bubble.appendChild(actions);
 
     wrap.appendChild(nameEl);
     wrap.appendChild(bubble);
@@ -921,8 +1125,55 @@
     }
   });
 
+  function editMessage(msgIdx, bubble) {
+    const textSpan = bubble.querySelector('.msg-text');
+    if (!textSpan || textSpan.contentEditable === 'true') return;
+    const original = textSpan.textContent;
+
+    textSpan.contentEditable = 'true';
+    bubble.style.boxShadow = '0 0 0 1.5px var(--ink-faint)';
+    textSpan.focus();
+
+    const range = document.createRange();
+    range.selectNodeContents(textSpan);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    function save() {
+      textSpan.contentEditable = 'false';
+      bubble.style.boxShadow = '';
+      const newText = textSpan.textContent.trim();
+      textSpan.textContent = newText || original;
+      messages[msgIdx].text = textSpan.textContent;
+    }
+
+    textSpan.addEventListener('blur', save, { once: true });
+    textSpan.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); textSpan.blur(); }
+      if (e.key === 'Escape') { textSpan.textContent = original; messages[msgIdx].text = original; textSpan.blur(); }
+    });
+  }
+
+  function deleteMessage(msgIdx) {
+    messages.splice(msgIdx, 1);
+    const wrap = document.querySelector(`[data-msg-idx="${msgIdx}"]`);
+    if (!wrap) return;
+    wrap.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
+    wrap.style.opacity = '0';
+    wrap.style.transform = 'scale(0.95)';
+    setTimeout(() => {
+      wrap.remove();
+      document.querySelectorAll('[data-msg-idx]').forEach(el => {
+        const i = parseInt(el.dataset.msgIdx, 10);
+        if (i > msgIdx) el.dataset.msgIdx = i - 1;
+      });
+    }, 200);
+  }
+
   function startDrag(e) {
     if (e.button !== 0) return;
+    if (e.target.closest('.msg-actions')) return;
     e.preventDefault();
     const wrap = e.currentTarget;
     const msgIdx = parseInt(wrap.dataset.msgIdx, 10);

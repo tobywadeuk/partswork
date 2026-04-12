@@ -437,6 +437,89 @@
     border-color: var(--ink);
   }
 
+  /* ── Sketch ── */
+  #sketch-panel {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  #sketch-canvas {
+    width: 100%;
+    height: 168px;
+    border-radius: var(--radius-sm);
+    cursor: crosshair;
+    display: block;
+    touch-action: none;
+  }
+
+  .sketch-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  #sketch-colors {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+    flex: 1;
+  }
+
+  .sketch-swatch {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.12s;
+    box-sizing: border-box;
+  }
+
+  .sketch-swatch.active {
+    border-color: var(--ink-muted);
+    transform: scale(1.3);
+  }
+
+  #sketch-clear-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--ink-faint);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.15s;
+  }
+  #sketch-clear-btn:hover { color: var(--ink-muted); }
+
+  #sketch-toggle-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--rule);
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--ink-muted);
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  #sketch-toggle-btn.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  #sketch-toggle-btn svg {
+    width: 13px; height: 13px;
+    fill: none; stroke: currentColor;
+    stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+  }
+
+  .msg-sketch { display: block; width: 100%; border-radius: 8px; }
+
   .msg-wrap { cursor: grab; }
   .msg-wrap:active { cursor: grabbing; }
 
@@ -560,9 +643,19 @@
 
   <div class="bottom">
     <div class="speaker-row" id="speaker-row"></div>
+    <div id="sketch-panel">
+      <canvas id="sketch-canvas"></canvas>
+      <div class="sketch-tools">
+        <div id="sketch-colors"></div>
+        <button id="sketch-clear-btn">clear</button>
+      </div>
+    </div>
     <div class="input-row">
       <input class="msg-input" id="msg-input" type="text" placeholder="Write something…" autocomplete="off" />
-      <button class="send-btn" onclick="sendMsg()">
+      <button id="sketch-toggle-btn" title="Sketch">
+        <svg viewBox="0 0 16 16"><path d="M11 2l3 3-8 8H3v-3l8-8z"/></svg>
+      </button>
+      <button class="send-btn" id="send-btn">
         <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       </button>
     </div>
@@ -590,11 +683,19 @@
 
   const placeholderTerm = Math.random() < 0.5 ? 'Part' : 'Ego state';
 
+  const SKETCH_COLORS = ['#2c2420','#b84a38','#4a7c6a','#3a5a8a','#8a6a2c','#7a3a6a','#c87a3a','#f0ebe0'];
+
   let names = [];
   let active = 0;
   let messages = [];
   let dragging = null;
   const DRAG_THRESHOLD = 72;
+
+  let sketchMode = false;
+  let sketchPainting = false;
+  let sketchColor = SKETCH_COLORS[0];
+  let sketchCtxRef = null;
+  let sketchInited = false;
 
   // ── Setup: dynamic name fields ──
   let setupCount = 2;
@@ -799,9 +900,24 @@
       return lines;
     }
 
+    // Pre-load sketch images
+    const loadImg = src => new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; });
+    const sketchImgs = {};
+    await Promise.all(messages.filter(m => m.type === 'sketch').map(async m => {
+      sketchImgs[m.dataUrl] = await loadImg(m.dataUrl);
+    }));
+
     // Pre-compute each message
+    const SP = 5; // sketch padding
     const items = messages.map(m => {
-      const lines     = wrapText(m.text, MAX_BW);
+      if (m.type === 'sketch') {
+        const img = sketchImgs[m.dataUrl];
+        const ar  = m.canvasW / m.canvasH;
+        const bubbleW = MAX_BW;
+        const bubbleH = Math.round((bubbleW - SP * 2) / ar) + SP * 2;
+        return { ...m, img, lines: [], bubbleW, bubbleH };
+      }
+      const lines      = wrapText(m.text, MAX_BW);
       const textBlockH = (lines.length - 1) * TEXT_LH + TEXT_SIZE;
       const bubbleH    = BPY * 2 + textBlockH;
       scratch.font = `400 ${TEXT_SIZE}px 'Lora', Georgia, serif`;
@@ -886,14 +1002,18 @@
       }
       ctx.fill();
 
-      // Text
-      ctx.font = `400 ${TEXT_SIZE}px 'Lora', Georgia, serif`;
-      ctx.fillStyle = '#1a1410';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      m.lines.forEach((line, i) => {
-        ctx.fillText(line, bx + BPX, by + BPY + i * TEXT_LH);
-      });
+      // Content
+      if (m.type === 'sketch') {
+        ctx.drawImage(m.img, bx + SP, by + SP, m.bubbleW - SP * 2, m.bubbleH - SP * 2);
+      } else {
+        ctx.font = `400 ${TEXT_SIZE}px 'Lora', Georgia, serif`;
+        ctx.fillStyle = '#1a1410';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        m.lines.forEach((line, i) => {
+          ctx.fillText(line, bx + BPX, by + BPY + i * TEXT_LH);
+        });
+      }
 
       y += NAME_H + m.bubbleH + MSG_GAP;
     }
@@ -910,12 +1030,154 @@
   document.getElementById('save-btn').addEventListener('click', () => {
     const title = dialogueFilename();
     const rule  = '—'.repeat(Math.max(32, title.length + 8));
-    const body  = messages.map(m => `${names[m.person]}: ${m.text}`).join('\n\n');
+    const body  = messages.map(m => m.type === 'sketch' ? `${names[m.person]}: [sketch]` : `${names[m.person]}: ${m.text}`).join('\n\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([`${title}\n${rule}\n\n${body}\n\n${rule}`], { type: 'text/plain' }));
     a.download = `${title}.txt`;
     a.click();
   });
+
+  // ── Sketch ──
+  function initSketch() {
+    if (sketchInited) return;
+    sketchInited = true;
+
+    const canvas = document.getElementById('sketch-canvas');
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.offsetWidth || 480;
+    const h = 168;
+    canvas.width  = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.lineCap  = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 2.5;
+    sketchCtxRef = ctx;
+    clearSketch();
+
+    // Build color palette
+    const palette = document.getElementById('sketch-colors');
+    SKETCH_COLORS.forEach(col => {
+      const sw = document.createElement('button');
+      sw.className = 'sketch-swatch' + (col === sketchColor ? ' active' : '');
+      sw.style.background = col;
+      sw.addEventListener('click', () => {
+        sketchColor = col;
+        document.querySelectorAll('.sketch-swatch').forEach(s => s.classList.toggle('active', s === sw));
+      });
+      palette.appendChild(sw);
+    });
+
+    document.getElementById('sketch-clear-btn').addEventListener('click', clearSketch);
+
+    // Drawing events
+    canvas.addEventListener('pointerdown', e => {
+      sketchPainting = true;
+      canvas.setPointerCapture(e.pointerId);
+      const { x, y } = sketchPos(e, canvas);
+      sketchCtxRef.strokeStyle = sketchColor;
+      sketchCtxRef.beginPath();
+      sketchCtxRef.moveTo(x, y);
+      e.preventDefault();
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (!sketchPainting) return;
+      const { x, y } = sketchPos(e, canvas);
+      sketchCtxRef.lineTo(x, y);
+      sketchCtxRef.stroke();
+      sketchCtxRef.beginPath();
+      sketchCtxRef.moveTo(x, y);
+    });
+    canvas.addEventListener('pointerup',     () => { sketchPainting = false; });
+    canvas.addEventListener('pointercancel', () => { sketchPainting = false; });
+  }
+
+  function sketchPos(e, canvas) {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  function clearSketch() {
+    const canvas = document.getElementById('sketch-canvas');
+    const ctx = sketchCtxRef;
+    if (!ctx) return;
+    ctx.fillStyle = '#fdfaf4';
+    ctx.fillRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+  }
+
+  function toggleSketchMode(on) {
+    sketchMode = on;
+    const panel  = document.getElementById('sketch-panel');
+    const input  = document.getElementById('msg-input');
+    const toggle = document.getElementById('sketch-toggle-btn');
+    panel.style.display  = on ? 'flex' : 'none';
+    input.style.display  = on ? 'none' : '';
+    toggle.classList.toggle('active', on);
+    if (on) { initSketch(); document.getElementById('sketch-canvas').focus(); }
+    else    { input.focus(); }
+  }
+
+  document.getElementById('sketch-toggle-btn').addEventListener('click', () => toggleSketchMode(!sketchMode));
+
+  document.getElementById('send-btn').addEventListener('click', () => {
+    if (sketchMode) sendSketch(); else sendMsg();
+  });
+
+  function sendSketch() {
+    const canvas = document.getElementById('sketch-canvas');
+    const dataUrl = canvas.toDataURL('image/png');
+    const empty = document.getElementById('empty-msg');
+    if (empty) empty.remove();
+    appendSketch(active, dataUrl, canvas.width, canvas.height);
+    const msgs = document.getElementById('messages');
+    msgs.scrollTop = msgs.scrollHeight;
+    clearSketch();
+    toggleSketchMode(false);
+  }
+
+  function appendSketch(personIdx, dataUrl, canvasW, canvasH, animate = true) {
+    messages.push({ person: personIdx, type: 'sketch', dataUrl, canvasW, canvasH });
+    const msgIdx = messages.length - 1;
+    const pos = position(personIdx);
+    const col = palette(personIdx);
+
+    const wrap = document.createElement('div');
+    wrap.className = `msg-wrap ${pos}`;
+    wrap.dataset.msgIdx = msgIdx;
+    if (!animate) wrap.style.animation = 'none';
+    wrap.addEventListener('pointerdown', startDrag);
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'msg-name';
+    nameEl.textContent = names[personIdx];
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.style.background = col.bg;
+    bubble.style.padding = '5px';
+    bubble.style.position = 'relative';
+
+    const img = document.createElement('img');
+    img.className = 'msg-sketch';
+    img.src = dataUrl;
+    bubble.appendChild(img);
+
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'msg-action-btn';
+    delBtn.title = 'Delete';
+    delBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>`;
+    delBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    delBtn.addEventListener('click', () => deleteMessage(msgIdx));
+    actions.appendChild(delBtn);
+    bubble.appendChild(actions);
+
+    wrap.appendChild(nameEl);
+    wrap.appendChild(bubble);
+    document.getElementById('messages').appendChild(wrap);
+  }
 
   // ── Start chat ──
   document.getElementById('msg-input').addEventListener('keydown', e => {
@@ -1183,7 +1445,15 @@
 
     const ghost = document.createElement('div');
     ghost.className = 'msg-bubble';
-    ghost.textContent = messages[msgIdx].text;
+    const m = messages[msgIdx];
+    if (m.type === 'sketch') {
+      const gi = document.createElement('img');
+      gi.className = 'msg-sketch'; gi.src = m.dataUrl;
+      ghost.appendChild(gi);
+      ghost.style.padding = '5px';
+    } else {
+      ghost.textContent = m.text;
+    }
     Object.assign(ghost.style, {
       position: 'fixed',
       left: rect.left + 'px',

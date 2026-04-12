@@ -666,6 +666,7 @@
 
 <script>
   const MAX_PEOPLE = 3;
+  const SESSION_KEY = 'partswork_session';
 
   const PALETTE = [
     { dot: '#7a6e62', bg: '#e8e0d4' },
@@ -1543,7 +1544,6 @@
   }
 
   // ── Session persistence ──
-  const SESSION_KEY = 'partswork_session';
 
   function saveSession() {
     try {

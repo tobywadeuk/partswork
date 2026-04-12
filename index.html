@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Dialogue</title>
+<title>Parts Work</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌀</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -408,6 +409,9 @@
     border-color: var(--ink);
   }
 
+  .msg-wrap { cursor: grab; }
+  .msg-wrap:active { cursor: grabbing; }
+
   .speaker-add-btn {
     color: var(--ink-faint);
     padding: 6px 10px;
@@ -555,9 +559,13 @@
   function palette(idx) { return PALETTE[idx % PALETTE.length]; }
   function position(idx) { return POSITIONS[idx % POSITIONS.length]; }
 
+  const placeholderTerm = Math.random() < 0.5 ? 'Part' : 'Ego state';
+
   let names = [];
   let active = 0;
   let messages = [];
+  let dragging = null;
+  const DRAG_THRESHOLD = 72;
 
   // ── Setup: dynamic name fields ──
   let setupCount = 2;
@@ -579,7 +587,7 @@
       const input = document.createElement('input');
       input.type = 'text';
       input.dataset.idx = i;
-      input.placeholder = `Person ${i + 1}`;
+      input.placeholder = `${placeholderTerm} ${i + 1}`;
       input.maxLength = 28;
       input.autocomplete = 'off';
       if (saved[i]) input.value = saved[i];
@@ -663,12 +671,7 @@
   });
 
   // ── Load conversation ──
-  document.getElementById('load-convo-btn').addEventListener('click', () => {
-    document.getElementById('load-convo-file').click();
-  });
-
-  document.getElementById('load-convo-file').addEventListener('change', e => {
-    const file = e.target.files[0];
+  function loadConversationFile(file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
@@ -697,7 +700,31 @@
       startChat(parsed);
     };
     reader.readAsText(file);
+  }
+
+  document.getElementById('load-convo-btn').addEventListener('click', () => {
+    document.getElementById('load-convo-file').click();
+  });
+
+  document.getElementById('load-convo-file').addEventListener('change', e => {
+    loadConversationFile(e.target.files[0]);
     e.target.value = '';
+  });
+
+  const setupEl = document.getElementById('setup');
+  setupEl.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setupEl.style.borderColor = 'var(--ink-faint)';
+  });
+  setupEl.addEventListener('dragleave', () => {
+    setupEl.style.borderColor = '';
+  });
+  setupEl.addEventListener('drop', e => {
+    e.preventDefault();
+    setupEl.style.borderColor = '';
+    const file = Array.from(e.dataTransfer.files).find(f => f.name.endsWith('.txt'));
+    if (file) loadConversationFile(file);
   });
 
   // ── Save conversation ──
@@ -705,7 +732,9 @@
     const lines = messages.map(m => `${names[m.person]}: ${m.text}`).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([lines], { type: 'text/plain' }));
-    a.download = 'dialogue.txt';
+    const joined = names.length === 1 ? names[0]
+      : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+    a.download = `dialogue between ${joined}.txt`;
     a.click();
   });
 
@@ -716,7 +745,7 @@
 
   function startChat(loadedMessages) {
     const inputs = document.querySelectorAll('#name-fields input');
-    names = Array.from(inputs).map((el, i) => el.value.trim() || `Person ${i + 1}`);
+    names = Array.from(inputs).map((el, i) => el.value.trim() || `${placeholderTerm} ${i + 1}`);
     messages = [];
 
     document.getElementById('setup').style.display = 'none';
@@ -823,9 +852,14 @@
     const pos = position(personIdx);
     const col = palette(personIdx);
 
+    const msgIdx = messages.length - 1;
+
     const wrap = document.createElement('div');
     wrap.className = `msg-wrap ${pos}`;
+    wrap.dataset.msgIdx = msgIdx;
     if (!animate) wrap.style.animation = 'none';
+
+    wrap.addEventListener('pointerdown', startDrag);
 
     const nameEl = document.createElement('div');
     nameEl.className = 'msg-name';
@@ -886,6 +920,96 @@
       setActive(n - 1);
     }
   });
+
+  function startDrag(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const wrap = e.currentTarget;
+    const msgIdx = parseInt(wrap.dataset.msgIdx, 10);
+    const bubble = wrap.querySelector('.msg-bubble');
+    const rect = bubble.getBoundingClientRect();
+    const origBg = bubble.style.background;
+
+    const ghost = document.createElement('div');
+    ghost.className = 'msg-bubble';
+    ghost.textContent = messages[msgIdx].text;
+    Object.assign(ghost.style, {
+      position: 'fixed',
+      left: rect.left + 'px',
+      top: rect.top + 'px',
+      width: rect.width + 'px',
+      margin: '0',
+      background: origBg,
+      pointerEvents: 'none',
+      zIndex: '1000',
+      boxShadow: '0 10px 36px rgba(0,0,0,0.10)',
+      transition: 'background 0.28s ease',
+      willChange: 'transform',
+    });
+    document.body.appendChild(ghost);
+
+    wrap.style.transition = 'opacity 0.15s ease';
+    wrap.style.opacity = '0.15';
+
+    dragging = { wrap, ghost, msgIdx, origBg, startX: e.clientX, startY: e.clientY, pendingTarget: null };
+    document.addEventListener('pointermove', onDragMove);
+    document.addEventListener('pointerup', onDragEnd);
+    document.addEventListener('pointercancel', onDragEnd);
+  }
+
+  function onDragMove(e) {
+    if (!dragging) return;
+    const dx = e.clientX - dragging.startX;
+    const dy = e.clientY - dragging.startY;
+    dragging.ghost.style.transform = `translate(${dx}px, ${dy}px)`;
+
+    if (Math.abs(dx) >= DRAG_THRESHOLD && names.length >= 2) {
+      const targetIdx = dx < 0 ? 0 : 1;
+      if (dragging.pendingTarget !== targetIdx) {
+        dragging.pendingTarget = targetIdx;
+        dragging.ghost.style.background = palette(targetIdx).bg;
+      }
+    } else if (dragging.pendingTarget !== null) {
+      dragging.pendingTarget = null;
+      dragging.ghost.style.background = dragging.origBg;
+    }
+  }
+
+  function onDragEnd(e) {
+    if (!dragging) return;
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup', onDragEnd);
+    document.removeEventListener('pointercancel', onDragEnd);
+
+    const { wrap, ghost, msgIdx } = dragging;
+    const dx = (e.clientX ?? dragging.startX) - dragging.startX;
+
+    if (e.type !== 'pointercancel' && Math.abs(dx) >= DRAG_THRESHOLD && names.length >= 2) {
+      reassignMessage(msgIdx, dx < 0 ? 0 : 1);
+    }
+
+    ghost.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
+    ghost.style.opacity = '0';
+    ghost.style.transform = (ghost.style.transform || '') + ' scale(0.96)';
+    setTimeout(() => ghost.remove(), 200);
+
+    wrap.style.opacity = '';
+    setTimeout(() => { wrap.style.transition = ''; }, 200);
+
+    dragging = null;
+  }
+
+  function reassignMessage(msgIdx, personIdx) {
+    messages[msgIdx].person = personIdx;
+    const wrap = document.querySelector(`[data-msg-idx="${msgIdx}"]`);
+    if (!wrap) return;
+    const bubble = wrap.querySelector('.msg-bubble');
+    bubble.style.transition = 'background 0.32s ease';
+    bubble.style.background = palette(personIdx).bg;
+    setTimeout(() => { bubble.style.transition = ''; }, 340);
+    wrap.querySelector('.msg-name').textContent = names[personIdx];
+    wrap.className = `msg-wrap ${position(personIdx)}`;
+  }
 
   function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

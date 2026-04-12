@@ -768,6 +768,7 @@
   }
 
   renderNameFields();
+  restoreSession();
 
   // ── Prompts ──
   const prompts = [
@@ -1180,6 +1181,7 @@
     wrap.appendChild(nameEl);
     wrap.appendChild(bubble);
     document.getElementById('messages').appendChild(wrap);
+    saveSession();
   }
 
   // ── Start chat ──
@@ -1342,6 +1344,7 @@
     wrap.appendChild(nameEl);
     wrap.appendChild(bubble);
     document.getElementById('messages').appendChild(wrap);
+    saveSession();
   }
 
   function sendMsg() {
@@ -1362,6 +1365,7 @@
 
   function resetAll() {
     if (!confirm('Clear the conversation and start over?')) return;
+    clearSession();
     messages = [];
     names = [];
     active = 0;
@@ -1411,6 +1415,7 @@
       const newText = textSpan.textContent.trim();
       textSpan.textContent = newText || original;
       messages[msgIdx].text = textSpan.textContent;
+      saveSession();
     }
 
     textSpan.addEventListener('blur', save, { once: true });
@@ -1422,6 +1427,7 @@
 
   function deleteMessage(msgIdx) {
     messages.splice(msgIdx, 1);
+    saveSession();
     const wrap = document.querySelector(`[data-msg-idx="${msgIdx}"]`);
     if (!wrap) return;
     wrap.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
@@ -1525,6 +1531,7 @@
 
   function reassignMessage(msgIdx, personIdx) {
     messages[msgIdx].person = personIdx;
+    saveSession();
     const wrap = document.querySelector(`[data-msg-idx="${msgIdx}"]`);
     if (!wrap) return;
     const bubble = wrap.querySelector('.msg-bubble');
@@ -1533,6 +1540,55 @@
     setTimeout(() => { bubble.style.transition = ''; }, 340);
     wrap.querySelector('.msg-name').textContent = names[personIdx];
     wrap.className = `msg-wrap ${position(personIdx)}`;
+  }
+
+  // ── Session persistence ──
+  const SESSION_KEY = 'partswork_session';
+
+  function saveSession() {
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        names,
+        messages: messages.map(m => m.type === 'sketch'
+          ? { person: m.person, type: 'sketch', dataUrl: m.dataUrl, canvasW: m.canvasW, canvasH: m.canvasH }
+          : { person: m.person, type: 'text', text: m.text }
+        )
+      }));
+    } catch (_) {}
+  }
+
+  function clearSession() {
+    localStorage.removeItem(SESSION_KEY);
+  }
+
+  function restoreSession() {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return false;
+      const { names: savedNames, messages: savedMsgs } = JSON.parse(raw);
+      if (!savedNames?.length || !savedMsgs?.length) return false;
+
+      names      = savedNames;
+      messages   = [];
+      setupCount = names.length;
+
+      document.getElementById('setup').style.display = 'none';
+      document.getElementById('app').style.display   = 'flex';
+      buildHeader();
+      buildSpeakerRow();
+      setActive(0);
+
+      const empty = document.getElementById('empty-msg');
+      if (empty) empty.remove();
+
+      for (const m of savedMsgs) {
+        if (m.type === 'sketch') appendSketch(m.person, m.dataUrl, m.canvasW, m.canvasH, false);
+        else                     appendMessage(m.person, m.text, false);
+      }
+
+      document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+      return true;
+    } catch (_) { return false; }
   }
 
   function escHtml(str) {

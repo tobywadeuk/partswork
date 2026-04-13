@@ -598,129 +598,6 @@
     stroke-linejoin: round;
   }
 
-  /* ── Modals ── */
-  .modal-wrap {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
-
-  .modal-backdrop {
-    position: absolute;
-    inset: 0;
-    background: rgba(26,20,16,0.32);
-  }
-
-  .modal-card {
-    position: relative;
-    background: var(--paper);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius);
-    padding: 32px 28px 24px;
-    width: 100%;
-    max-width: 360px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .modal-card--wide { max-width: 500px; }
-
-  .modal-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    color: var(--ink-muted);
-    text-transform: uppercase;
-  }
-
-  .modal-input {
-    font-family: 'DM Mono', monospace;
-    font-size: 13px;
-    color: var(--ink);
-    background: var(--bg);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-sm);
-    padding: 9px 12px;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .modal-input:focus { border-color: var(--ink-muted); }
-
-  .modal-hint {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    color: var(--ink-faint);
-    letter-spacing: 0.02em;
-    line-height: 1.5;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    margin-top: 4px;
-  }
-
-  .modal-btn--right { margin-left: auto; }
-
-  .modal-btn-primary {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 8px 18px;
-    background: var(--ink);
-    color: var(--paper);
-    border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: opacity 0.15s;
-  }
-  .modal-btn-primary:hover { opacity: 0.8; }
-
-  .modal-btn-ghost {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    color: var(--ink-faint);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 4px 2px;
-    transition: color 0.15s;
-  }
-  .modal-btn-ghost:hover { color: var(--ink-muted); }
-
-  .distil-result {
-    font-family: 'Lora', serif;
-    font-size: 14px;
-    line-height: 1.7;
-    color: var(--ink);
-    white-space: pre-wrap;
-    max-height: 60vh;
-    overflow-y: auto;
-    padding-right: 4px;
-  }
-
-  .distil-result::-webkit-scrollbar { width: 3px; }
-  .distil-result::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
-
-  .distil-cursor {
-    display: inline-block;
-    width: 2px;
-    height: 1em;
-    background: var(--ink-faint);
-    margin-left: 1px;
-    vertical-align: text-bottom;
-    animation: blink 0.9s step-end infinite;
-  }
-  @keyframes blink { 50% { opacity: 0; } }
-
   /* Responsive */
   @media (max-width: 480px) {
     body { padding: 0; align-items: flex-end; }
@@ -789,32 +666,14 @@
   </div>
 </div>
 
-<!-- API key modal -->
-<div id="apikey-modal" class="modal-wrap" style="display:none">
-  <div class="modal-backdrop" id="apikey-backdrop"></div>
-  <div class="modal-card">
-    <p class="modal-label">Anthropic API key</p>
-    <input class="modal-input" id="apikey-input" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" />
-    <p class="modal-hint">Stored only in your browser. Used solely to call Claude.</p>
-    <div class="modal-actions">
-      <button class="modal-btn-primary" id="apikey-save">Continue</button>
-      <button class="modal-btn-ghost" id="apikey-cancel">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- Distil result modal -->
-<div id="distil-modal" class="modal-wrap" style="display:none">
-  <div class="modal-backdrop" id="distil-backdrop"></div>
-  <div class="modal-card modal-card--wide">
-    <div id="distil-result" class="distil-result"></div>
-    <div class="modal-actions">
-      <button class="modal-btn-primary" id="distil-copy">Copy</button>
-      <button class="modal-btn-ghost" id="distil-close">Close</button>
-      <button class="modal-btn-ghost modal-btn--right" id="distil-change-key">change key</button>
-    </div>
-  </div>
-</div>
+<div id="distil-toast" style="
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(12px);
+  background:var(--ink); color:var(--paper);
+  font-family:'DM Mono',monospace; font-size:11px; letter-spacing:0.04em;
+  padding:9px 18px; border-radius:20px;
+  opacity:0; transition:opacity 0.2s, transform 0.2s;
+  pointer-events:none; white-space:nowrap; z-index:300;
+"></div>
 
 <script>
   const MAX_PEOPLE = 3;
@@ -1744,140 +1603,28 @@
   }
 
   // ── Distil ──
-  const APIKEY_KEY = 'partswork_apikey';
-
-  function getApiKey() { return localStorage.getItem(APIKEY_KEY) || ''; }
-  function setApiKey(k) { localStorage.setItem(APIKEY_KEY, k); }
-
-  function showApiKeyModal(onSave) {
-    const modal = document.getElementById('apikey-modal');
-    const input = document.getElementById('apikey-input');
-    modal.style.display = 'flex';
-    input.value = getApiKey();
-    setTimeout(() => input.focus(), 50);
-
-    function close() {
-      modal.style.display = 'none';
-      document.getElementById('apikey-save').onclick   = null;
-      document.getElementById('apikey-cancel').onclick = null;
-      document.getElementById('apikey-backdrop').onclick = null;
-    }
-
-    document.getElementById('apikey-save').onclick = () => {
-      const k = input.value.trim();
-      if (!k) return;
-      setApiKey(k);
-      close();
-      onSave();
-    };
-    document.getElementById('apikey-cancel').onclick  = close;
-    document.getElementById('apikey-backdrop').onclick = close;
-    input.onkeydown = e => { if (e.key === 'Enter') document.getElementById('apikey-save').click(); };
+  function showToast(msg) {
+    const t = document.getElementById('distil-toast');
+    t.textContent = msg;
+    t.style.opacity = '1';
+    t.style.transform = 'translateX(-50%) translateY(0)';
+    setTimeout(() => {
+      t.style.opacity = '0';
+      t.style.transform = 'translateX(-50%) translateY(12px)';
+    }, 2200);
   }
-
-  function showDistilModal() {
-    document.getElementById('distil-modal').style.display = 'flex';
-    document.getElementById('distil-result').innerHTML = '';
-  }
-
-  function closeDistilModal() {
-    document.getElementById('distil-modal').style.display = 'none';
-  }
-
-  document.getElementById('distil-backdrop').addEventListener('click', closeDistilModal);
-  document.getElementById('distil-close').addEventListener('click', closeDistilModal);
-  document.getElementById('distil-copy').addEventListener('click', () => {
-    const text = document.getElementById('distil-result').textContent;
-    navigator.clipboard.writeText(text).then(() => {
-      const btn = document.getElementById('distil-copy');
-      btn.textContent = 'Copied';
-      setTimeout(() => { btn.textContent = 'Copy'; }, 1800);
-    });
-  });
-  document.getElementById('distil-change-key').addEventListener('click', () => {
-    closeDistilModal();
-    showApiKeyModal(() => runDistil());
-  });
 
   document.getElementById('distil-btn').addEventListener('click', () => {
-    if (!getApiKey()) { showApiKeyModal(() => runDistil()); return; }
-    runDistil();
-  });
-
-  async function runDistil() {
     if (messages.length === 0) return;
-
     const convo = messages
       .map(m => m.type === 'sketch' ? `${names[m.person]}: [sketch]` : `${names[m.person]}: ${m.text}`)
       .join('\n');
-
-    const prompt = `${convo}\n\n---\n\nJust parse back what was said but in a better order, clear and concise, in the speakers' own words. Cut repetition and fluff.`;
-
-    showDistilModal();
-    const resultEl = document.getElementById('distil-result');
-    const cursor   = document.createElement('span');
-    cursor.className = 'distil-cursor';
-    resultEl.appendChild(cursor);
-
-    const btn = document.getElementById('distil-btn');
-    btn.textContent = '…';
-    btn.style.pointerEvents = 'none';
-
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': getApiKey(),
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-allow-browser': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1024,
-          stream: true,
-          system: 'You are helping someone doing parts work / IFS therapy to distil their inner dialogue. Be faithful to what was actually said.',
-          messages: [{ role: 'user', content: prompt }],
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        resultEl.textContent = `Error: ${err.error?.message || res.statusText}`;
-        return;
-      }
-
-      const reader  = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split('\n');
-        buf = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6);
-          if (data === '[DONE]') continue;
-          try {
-            const evt = JSON.parse(data);
-            if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
-              cursor.insertAdjacentText('beforebegin', evt.delta.text);
-              resultEl.scrollTop = resultEl.scrollHeight;
-            }
-          } catch (_) {}
-        }
-      }
-    } catch (e) {
-      resultEl.textContent = `Error: ${e.message}`;
-    } finally {
-      cursor.remove();
-      btn.textContent = 'distil';
-      btn.style.pointerEvents = '';
-    }
-  }
+    const text = `${convo}\n\n---\n\nJust parse back what was said but in a better order, clear and concise, in the speakers' own words. Cut repetition and fluff.`;
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('copied — paste into Claude');
+      window.open('https://claude.ai', '_blank');
+    });
+  });
 
   function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

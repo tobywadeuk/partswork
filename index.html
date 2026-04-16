@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Inner Dialogues</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌀</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -633,7 +633,7 @@
     body { padding: 0; align-items: center; justify-content: flex-start; padding-top: 40px; min-height: 100dvh; }
     .setup-wrap { padding: 0 16px; width: 100%; max-width: 100%; box-sizing: border-box; }
     #setup { border-radius: var(--radius); padding: 36px 24px 32px; max-width: 100%; }
-    #app { position: fixed; bottom: 0; left: 0; right: 0; border-radius: var(--radius) var(--radius) 0 0; height: 96vh; max-width: 100%; }
+    #app { position: fixed; bottom: 0; left: 0; right: 0; border-radius: 0; height: 100dvh; max-width: 100%; padding-top: env(safe-area-inset-top, 0px); box-sizing: border-box; }
     .msg-wrap { max-width: 82%; }
     .msg-input, .name-row input, .speaker-new-input { font-size: 16px; }
   }

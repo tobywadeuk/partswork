@@ -172,6 +172,50 @@
     white-space: nowrap;
   }
 
+  .guide-toggle {
+    margin-top: 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    cursor: pointer;
+    text-align: center;
+    transition: color 0.15s;
+  }
+  .guide-toggle:hover { color: var(--ink-muted); }
+
+  .guide {
+    margin-top: 14px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 20px 22px;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .guide-section {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .guide-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .guide-section p {
+    margin: 0;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--ink-muted);
+  }
+
   .start-btn {
     font-family: 'DM Mono', monospace;
     font-size: 12px;
@@ -248,6 +292,20 @@
     font-size: 11px;
     color: var(--ink-muted);
     letter-spacing: 0.04em;
+  }
+
+  .speaker-rename-input {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: inherit;
+    letter-spacing: 0.04em;
+    border: none;
+    border-bottom: 1px solid currentColor;
+    background: transparent;
+    outline: none;
+    padding: 0;
+    max-width: 100px;
+    opacity: 0.9;
   }
 
   .header-dot {
@@ -654,6 +712,37 @@
       <button class="load-convo-btn" id="load-convo-btn">load conversation</button>
     </div>
     <input type="file" id="load-convo-file" accept=".txt" hidden />
+  </div>
+  <div class="guide-toggle" id="guide-toggle" onclick="toggleGuide()">how it works</div>
+  <div class="guide" id="guide" style="display:none">
+    <div class="guide-section">
+      <span class="guide-label">dialogue</span>
+      <p>Name the voices — parts of you, or real people. Type as each speaker and press Enter or tap send. Switch speakers with the buttons at the bottom.</p>
+    </div>
+    <div class="guide-section">
+      <span class="guide-label">sketch</span>
+      <p>Tap the pencil icon to draw instead of write — useful for images, diagrams, or anything words can't hold.</p>
+    </div>
+    <div class="guide-section">
+      <span class="guide-label">edit &amp; delete</span>
+      <p>Hover over any message to reveal options to edit or remove it.</p>
+    </div>
+    <div class="guide-section">
+      <span class="guide-label">reassign</span>
+      <p>Drag a message left or right to move it to a different speaker.</p>
+    </div>
+    <div class="guide-section">
+      <span class="guide-label">recap</span>
+      <p>Copies your conversation to the clipboard and opens Claude — paste it in for a clear, distilled summary.</p>
+    </div>
+    <div class="guide-section">
+      <span class="guide-label">export</span>
+      <p>Save as a styled image to share, or a plain text file to keep.</p>
+    </div>
+    <div class="guide-section">
+      <span class="guide-label">auto-save</span>
+      <p>Your conversation saves automatically. Refresh or close the tab — it'll be here when you return.</p>
+    </div>
   </div>
   <p class="setup-privacy">your words stay on your device</p>
   <p class="setup-copyright">© Social Sage</p>
@@ -1222,6 +1311,7 @@
 
     const nameEl = document.createElement('div');
     nameEl.className = 'msg-name';
+    nameEl.dataset.person = personIdx;
     nameEl.textContent = names[personIdx];
 
     const bubble = document.createElement('div');
@@ -1284,7 +1374,7 @@
     document.getElementById('header-people').innerHTML = names.map((n, i) => `
       <div class="header-person">
         <div class="header-dot" style="background:${palette(i).dot};"></div>
-        ${escHtml(n)}
+        <span class="header-name">${escHtml(n)}</span>
       </div>`).join('');
   }
 
@@ -1296,8 +1386,33 @@
       const btn = document.createElement('button');
       btn.className = 'speaker-btn' + (i === active ? ' active' : '');
       btn.id = `tab-${i}`;
-      btn.innerHTML = `<span class="s-dot" style="background:${palette(i).dot};"></span>${escHtml(n)}`;
+      btn.title = 'double-tap to rename';
+      btn.innerHTML = `<span class="s-dot" style="background:${palette(i).dot};"></span><span class="s-name">${escHtml(n)}</span>`;
       btn.addEventListener('click', () => setActive(i));
+      btn.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        const nameSpan = btn.querySelector('.s-name');
+        const input = document.createElement('input');
+        input.className = 'speaker-rename-input';
+        input.value = names[i];
+        input.style.width = Math.max(40, nameSpan.offsetWidth + 8) + 'px';
+        nameSpan.replaceWith(input);
+        input.focus();
+        input.select();
+        function save() {
+          const val = input.value.trim() || names[i];
+          names[i] = val;
+          document.querySelectorAll(`.msg-name[data-person="${i}"]`).forEach(el => el.textContent = val);
+          saveSession();
+          buildHeader();
+          buildSpeakerRow();
+        }
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+          if (e.key === 'Escape') { input.removeEventListener('blur', save); buildSpeakerRow(); }
+        });
+      });
       row.appendChild(btn);
     });
 
@@ -1378,6 +1493,7 @@
 
     const nameEl = document.createElement('div');
     nameEl.className = 'msg-name';
+    nameEl.dataset.person = personIdx;
     nameEl.textContent = names[personIdx];
 
     const bubble = document.createElement('div');
@@ -1608,7 +1724,9 @@
     bubble.style.transition = 'background 0.32s ease';
     bubble.style.background = palette(personIdx).bg;
     setTimeout(() => { bubble.style.transition = ''; }, 340);
-    wrap.querySelector('.msg-name').textContent = names[personIdx];
+    const nameEl = wrap.querySelector('.msg-name');
+    nameEl.textContent = names[personIdx];
+    nameEl.dataset.person = personIdx;
     wrap.className = `msg-wrap ${position(personIdx)}`;
   }
 
@@ -1732,6 +1850,14 @@
   document.getElementById('distil-guide').addEventListener('click', e => {
     if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
   });
+
+  function toggleGuide() {
+    const guide = document.getElementById('guide');
+    const toggle = document.getElementById('guide-toggle');
+    const open = guide.style.display === 'flex';
+    guide.style.display = open ? 'none' : 'flex';
+    toggle.textContent = open ? 'how it works' : 'hide guide';
+  }
 
   function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

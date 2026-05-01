@@ -419,9 +419,11 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  .msg-wrap.left  { align-self: flex-start; }
-  .msg-wrap.mid   { align-self: center; }
-  .msg-wrap.right { align-self: flex-end; }
+  .msg-wrap.left      { align-self: flex-start; }
+  .msg-wrap.mid       { align-self: center; }
+  .msg-wrap.right     { align-self: flex-end; }
+  .msg-wrap.mid-left  { align-self: flex-start; margin-left: 12%; max-width: 58%; }
+  .msg-wrap.mid-right { align-self: flex-end; margin-right: 12%; max-width: 58%; }
 
   .msg-name {
     font-family: 'DM Mono', monospace;
@@ -432,8 +434,9 @@
     padding: 0 4px;
   }
 
-  .msg-wrap.right .msg-name { text-align: right; }
-  .msg-wrap.mid   .msg-name { text-align: center; }
+  .msg-wrap.right     .msg-name { text-align: right; }
+  .msg-wrap.mid       .msg-name { text-align: center; }
+  .msg-wrap.mid-right .msg-name { text-align: right; }
 
   .msg-bubble {
     font-family: 'Lora', serif;
@@ -447,8 +450,10 @@
   }
 
   /* bubble corner tails set via position class — background set inline */
-  .msg-wrap.left  .msg-bubble { border-bottom-left-radius: 3px; }
-  .msg-wrap.right .msg-bubble { border-bottom-right-radius: 3px; }
+  .msg-wrap.left      .msg-bubble { border-bottom-left-radius: 3px; }
+  .msg-wrap.mid-left  .msg-bubble { border-bottom-left-radius: 3px; }
+  .msg-wrap.right     .msg-bubble { border-bottom-right-radius: 3px; }
+  .msg-wrap.mid-right .msg-bubble { border-bottom-right-radius: 3px; }
 
   .msg-actions {
     position: absolute;
@@ -460,7 +465,8 @@
     pointer-events: none;
     transition: opacity 0.18s;
   }
-  .msg-wrap.right .msg-actions { right: auto; left: 7px; }
+  .msg-wrap.right     .msg-actions { right: auto; left: 7px; }
+  .msg-wrap.mid-right .msg-actions { right: auto; left: 7px; }
   .msg-wrap:hover .msg-actions { opacity: 1; pointer-events: auto; }
 
   .msg-action-btn {
@@ -822,7 +828,7 @@
 </div>
 
 <script>
-  const MAX_PEOPLE = 3;
+  const MAX_PEOPLE = 4;
   const SESSION_KEY = 'partswork_session';
 
   const PALETTE = [
@@ -834,9 +840,8 @@
     { dot: '#5a7878', bg: '#dde6e6' },
   ];
 
-  // Positions: first two people get left/right (most natural for dialogue),
-  // further people cycle through all three.
-  const POSITIONS = ['left', 'right', 'mid'];
+  // Positions: outer voices left/right, inner voices slightly inset.
+  const POSITIONS = ['left', 'right', 'mid-left', 'mid-right'];
 
   function palette(idx) { return PALETTE[idx % PALETTE.length]; }
   function position(idx) { return POSITIONS[idx % POSITIONS.length]; }

@@ -1388,6 +1388,14 @@
       </div>`).join('');
   }
 
+  function refreshPositions() {
+    document.querySelectorAll('.msg-wrap[data-msg-idx]').forEach(wrap => {
+      const idx = +wrap.dataset.msgIdx;
+      const person = messages[idx].person;
+      wrap.className = `msg-wrap ${position(person)}`;
+    });
+  }
+
   function buildSpeakerRow() {
     const row = document.getElementById('speaker-row');
     row.innerHTML = '';
@@ -1460,6 +1468,7 @@
         buildHeader();
         buildSpeakerRow();
         setActive(names.length - 1);
+        refreshPositions();
       } else {
         buildSpeakerRow();
       }

@@ -840,11 +840,16 @@
     { dot: '#5a7878', bg: '#dde6e6' },
   ];
 
-  // Positions: outer voices left/right, inner voices slightly inset.
-  const POSITIONS = ['left', 'right', 'mid-left', 'mid-right'];
-
   function palette(idx) { return PALETTE[idx % PALETTE.length]; }
-  function position(idx) { return POSITIONS[idx % POSITIONS.length]; }
+  function position(idx) {
+    const layouts = {
+      2: ['left', 'right'],
+      3: ['left', 'right', 'mid'],
+      4: ['left', 'right', 'mid-left', 'mid-right'],
+    };
+    const layout = layouts[names.length] || layouts[4];
+    return layout[idx] || layout[layout.length - 1];
+  }
 
   const placeholderTerm = Math.random() < 0.5 ? 'Part' : 'Ego state';
 

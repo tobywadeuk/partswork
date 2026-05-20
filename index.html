@@ -457,17 +457,24 @@
 
   .msg-actions {
     position: absolute;
-    top: 7px;
-    right: 7px;
+    top: -12px;
+    right: 8px;
     display: flex;
-    gap: 2px;
+    gap: 1px;
+    padding: 3px 4px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.18s;
+    z-index: 2;
   }
-  .msg-wrap.right     .msg-actions { right: auto; left: 7px; }
-  .msg-wrap.mid-right .msg-actions { right: auto; left: 7px; }
-  .msg-wrap:hover .msg-actions { opacity: 1; pointer-events: auto; }
+  .msg-wrap.right     .msg-actions { right: auto; left: 8px; }
+  .msg-wrap.mid-right .msg-actions { right: auto; left: 8px; }
+  .msg-wrap:hover .msg-actions,
+  .msg-wrap.pending-delete .msg-actions { opacity: 1; pointer-events: auto; }
 
   .msg-action-btn {
     background: none;
@@ -476,12 +483,116 @@
     padding: 3px;
     color: var(--ink-faint);
     line-height: 0;
-    border-radius: 4px;
+    border-radius: 50%;
     transition: color 0.15s, background 0.15s;
   }
-  .msg-action-btn:hover { color: var(--ink-muted); background: rgba(0,0,0,0.06); }
+  .msg-action-btn:hover { color: var(--ink); background: rgba(0,0,0,0.05); }
 
   .msg-text[contenteditable="true"] { outline: none; }
+
+  /* ── Notes Panel (sits to the right of #app) ── */
+  #notes-panel {
+    display: none;
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    left: calc(50% + 290px);
+    width: 280px;
+    height: min(720px, 92vh);
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #notes-panel.visible { display: flex; }
+
+  .notes-header {
+    padding: 14px 16px 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border-bottom: 1px solid var(--rule);
+    flex-shrink: 0;
+  }
+
+  #notes-area {
+    flex: 1;
+    width: 100%;
+    border: none;
+    outline: none;
+    resize: none;
+    background: transparent;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--ink-muted);
+    padding: 14px 16px;
+    box-sizing: border-box;
+  }
+
+  #notes-area::placeholder {
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+
+  /* ── Message comments ── */
+  .msg-comment {
+    position: relative;
+    margin-top: 5px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    line-height: 1.5;
+    color: var(--ink-faint);
+    font-style: italic;
+    padding: 0 2px;
+    padding-right: 14px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  .msg-comment:hover { color: var(--ink-muted); }
+
+  .msg-comment-remove {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 12px;
+    height: 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--ink-faint);
+    font-size: 11px;
+    line-height: 1;
+    padding: 0;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+  }
+  .msg-comment:hover .msg-comment-remove { opacity: 1; }
+  .msg-comment-remove:hover { color: var(--ink); }
+
+  .msg-comment-input {
+    display: block;
+    margin-top: 6px;
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(0,0,0,0.04);
+    border: none;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--ink);
+    outline: none;
+    resize: none;
+    line-height: 1.5;
+  }
+
+  .msg-comment-input::placeholder { color: var(--ink-faint); }
 
   /* Bottom */
   .bottom {
@@ -693,11 +804,16 @@
   }
 
   /* Responsive */
+  @media (max-width: 880px) {
+    #notes-panel { display: none !important; }
+  }
+
   @media (max-width: 480px) {
     body { padding: 0; align-items: center; justify-content: flex-start; padding-top: 40px; min-height: 100dvh; }
     .setup-wrap { padding: 0 16px; width: 100%; max-width: 100%; box-sizing: border-box; }
     #setup { border-radius: var(--radius); padding: 36px 24px 32px; max-width: 100%; }
     #app { position: fixed; bottom: 0; left: 0; right: 0; border-radius: 0; height: 100dvh; max-width: 100%; padding-top: env(safe-area-inset-top, 0px); box-sizing: border-box; }
+    #notes-panel { display: none !important; }
     .msg-wrap { max-width: 82%; }
     .msg-input, .name-row input, .speaker-new-input { font-size: 16px; }
   }
@@ -796,6 +912,12 @@
   </div>
 </div>
 
+<!-- Notes Panel -->
+<div id="notes-panel">
+  <div class="notes-header">notes</div>
+  <textarea id="notes-area" placeholder="observations, patterns, things to return to…" spellcheck="false"></textarea>
+</div>
+
 <div id="distil-toast" style="
   position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(12px);
   background:var(--ink); color:var(--paper);
@@ -859,6 +981,7 @@
   let active = 0;
   let messages = [];
   let dragging = null;
+  let pendingDelete = null;
   const DRAG_THRESHOLD = 72;
 
   let sketchMode = false;
@@ -937,6 +1060,13 @@
 
   renderNameFields();
   restoreSession();
+
+  // ── Notes ──
+  const notesArea = document.getElementById('notes-area');
+  notesArea.value = localStorage.getItem('partswork_notes') || '';
+  notesArea.addEventListener('input', () => {
+    localStorage.setItem('partswork_notes', notesArea.value);
+  });
 
   // ── Prompts ──
   const prompts = [
@@ -1052,23 +1182,34 @@
     const TEXT_SIZE = 14;
     const TEXT_LH   = TEXT_SIZE * 1.62;
     const HEADER_H  = 44;
+    const COMMENT_SIZE = 10;
+    const COMMENT_LH   = COMMENT_SIZE * 1.6;
+    const COMMENT_GAP  = 6;
+    const NOTES_TITLE_SIZE = 11;
+    const NOTES_SIZE = 12;
+    const NOTES_LH = NOTES_SIZE * 1.7;
 
     // Measure on a scratch canvas
     const scratch = document.createElement('canvas').getContext('2d');
 
-    function wrapText(text, maxW) {
-      scratch.font = `400 ${TEXT_SIZE}px 'Lora', Georgia, serif`;
-      const words = text.split(' ');
-      const lines = [];
-      let line = '';
-      for (const w of words) {
-        const test = line ? `${line} ${w}` : w;
-        if (scratch.measureText(test).width > maxW - BPX * 2 && line) {
-          lines.push(line); line = w;
-        } else { line = test; }
+    function wrapText(text, maxW, font, padX) {
+      scratch.font = font || `400 ${TEXT_SIZE}px 'Lora', Georgia, serif`;
+      const padding = padX !== undefined ? padX : BPX;
+      const out = [];
+      // Preserve newlines from user input
+      for (const paragraph of String(text).split('\n')) {
+        if (!paragraph) { out.push(''); continue; }
+        const words = paragraph.split(' ');
+        let line = '';
+        for (const w of words) {
+          const test = line ? `${line} ${w}` : w;
+          if (scratch.measureText(test).width > maxW - padding * 2 && line) {
+            out.push(line); line = w;
+          } else { line = test; }
+        }
+        if (line) out.push(line);
       }
-      if (line) lines.push(line);
-      return lines;
+      return out;
     }
 
     // Pre-load sketch images
@@ -1080,26 +1221,47 @@
 
     // Pre-compute each message
     const SP = 5; // sketch padding
+    const COMMENT_FONT = `italic 400 ${COMMENT_SIZE}px 'DM Mono', monospace`;
     const items = messages.map(m => {
+      let item;
       if (m.type === 'sketch') {
         const img = sketchImgs[m.dataUrl];
         const ar  = m.canvasW / m.canvasH;
         const bubbleW = MAX_BW;
         const bubbleH = Math.round((bubbleW - SP * 2) / ar) + SP * 2;
-        return { ...m, img, lines: [], bubbleW, bubbleH };
+        item = { ...m, img, lines: [], bubbleW, bubbleH };
+      } else {
+        const lines      = wrapText(m.text, MAX_BW);
+        const textBlockH = (lines.length - 1) * TEXT_LH + TEXT_SIZE;
+        const bubbleH    = BPY * 2 + textBlockH;
+        scratch.font = `400 ${TEXT_SIZE}px 'Lora', Georgia, serif`;
+        const maxLineW = Math.max(...lines.map(l => scratch.measureText(l).width));
+        const bubbleW  = Math.min(MAX_BW, maxLineW + BPX * 2 + 4);
+        item = { ...m, lines, bubbleH, bubbleW };
       }
-      const lines      = wrapText(m.text, MAX_BW);
-      const textBlockH = (lines.length - 1) * TEXT_LH + TEXT_SIZE;
-      const bubbleH    = BPY * 2 + textBlockH;
-      scratch.font = `400 ${TEXT_SIZE}px 'Lora', Georgia, serif`;
-      const maxLineW = Math.max(...lines.map(l => scratch.measureText(l).width));
-      const bubbleW  = Math.min(MAX_BW, maxLineW + BPX * 2 + 4);
-      return { ...m, lines, bubbleH, bubbleW };
+      if (m.comment) {
+        item.commentLines = wrapText('✦ ' + m.comment, MAX_BW, COMMENT_FONT, 4);
+        item.commentH = item.commentLines.length * COMMENT_LH + COMMENT_GAP;
+      } else {
+        item.commentLines = [];
+        item.commentH = 0;
+      }
+      return item;
     });
 
+    // Notes section sizing
+    const notesText = (document.getElementById('notes-area').value || '').trim();
+    let notesLines = [];
+    let notesH = 0;
+    if (notesText) {
+      const NOTES_PAD = 18;
+      notesLines = wrapText(notesText, W - PAD_H * 2, `400 ${NOTES_SIZE}px 'DM Mono', monospace`, NOTES_PAD);
+      notesH = PAD_V + NOTES_TITLE_SIZE + 14 + notesLines.length * NOTES_LH + PAD_V;
+    }
+
     const totalH = HEADER_H + PAD_V
-      + items.reduce((s, it) => s + NAME_H + it.bubbleH + MSG_GAP, 0)
-      + PAD_V - MSG_GAP;
+      + items.reduce((s, it) => s + NAME_H + it.bubbleH + it.commentH + MSG_GAP, 0)
+      + PAD_V - MSG_GAP + notesH;
 
     const canvas = document.createElement('canvas');
     canvas.width  = W * SCALE;
@@ -1186,7 +1348,41 @@
         });
       }
 
-      y += NAME_H + m.bubbleH + MSG_GAP;
+      // Comment (below bubble)
+      if (m.commentLines && m.commentLines.length) {
+        ctx.font = COMMENT_FONT;
+        ctx.fillStyle = '#b8a898';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        const cy = by + m.bubbleH + COMMENT_GAP;
+        m.commentLines.forEach((line, i) => {
+          ctx.fillText(line, bx + 4, cy + i * COMMENT_LH);
+        });
+      }
+
+      y += NAME_H + m.bubbleH + m.commentH + MSG_GAP;
+    }
+
+    // Notes section
+    if (notesLines.length) {
+      const ny = y - MSG_GAP + PAD_V;
+      // Separator rule
+      ctx.fillStyle = '#e0d8cc';
+      ctx.fillRect(PAD_H, ny - PAD_V / 2, W - PAD_H * 2, 1);
+      // Title
+      ctx.font = `400 ${NOTES_TITLE_SIZE}px 'DM Mono', monospace`;
+      ctx.fillStyle = '#b8a898';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText('NOTES', PAD_H, ny);
+      // Body
+      ctx.font = `400 ${NOTES_SIZE}px 'DM Mono', monospace`;
+      ctx.fillStyle = '#6b5e4e';
+      const tx = PAD_H;
+      const ty0 = ny + NOTES_TITLE_SIZE + 14;
+      notesLines.forEach((line, i) => {
+        ctx.fillText(line, tx, ty0 + i * NOTES_LH);
+      });
     }
 
     canvas.toBlob(blob => {
@@ -1201,9 +1397,14 @@
   document.getElementById('save-btn').addEventListener('click', () => {
     const title = dialogueFilename();
     const rule  = '—'.repeat(Math.max(32, title.length + 8));
-    const body  = messages.map(m => m.type === 'sketch' ? `${names[m.person]}: [sketch]` : `${names[m.person]}: ${m.text}`).join('\n\n');
+    const body  = messages.map(m => {
+      const line = m.type === 'sketch' ? `${names[m.person]}: [sketch]` : `${names[m.person]}: ${m.text}`;
+      return m.comment ? `${line}\n    ✦ ${m.comment}` : line;
+    }).join('\n\n');
+    const notesText = (document.getElementById('notes-area').value || '').trim();
+    const notesSection = notesText ? `\n\n${rule}\nNotes\n${rule}\n\n${notesText}` : '';
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([`${title}\n${rule}\n\n${body}\n\n${rule}`], { type: 'text/plain' }));
+    a.href = URL.createObjectURL(new Blob([`${title}\n${rule}\n\n${body}\n\n${rule}${notesSection}`], { type: 'text/plain' }));
     a.download = `${title}.txt`;
     a.click();
   });
@@ -1307,8 +1508,8 @@
     toggleSketchMode(false);
   }
 
-  function appendSketch(personIdx, dataUrl, canvasW, canvasH, animate = true) {
-    messages.push({ person: personIdx, type: 'sketch', dataUrl, canvasW, canvasH });
+  function appendSketch(personIdx, dataUrl, canvasW, canvasH, animate = true, comment = '') {
+    messages.push({ person: personIdx, type: 'sketch', dataUrl, canvasW, canvasH, comment });
     const msgIdx = messages.length - 1;
     const pos = position(personIdx);
     const col = palette(personIdx);
@@ -1338,17 +1539,30 @@
 
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
+
+    const commentBtn = document.createElement('button');
+    commentBtn.className = 'msg-action-btn';
+    commentBtn.title = 'Add note';
+    commentBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2h8v7H6.5L4 11V9H2z"/></svg>`;
+    commentBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    commentBtn.addEventListener('click', () => toggleComment(parseInt(wrap.dataset.msgIdx, 10), wrap));
+
     const delBtn = document.createElement('button');
     delBtn.className = 'msg-action-btn';
     delBtn.title = 'Delete';
     delBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>`;
     delBtn.addEventListener('pointerdown', e => e.stopPropagation());
-    delBtn.addEventListener('click', () => deleteMessage(msgIdx));
+    delBtn.addEventListener('click', () => requestDeleteMessage(wrap, delBtn));
+
+    actions.appendChild(commentBtn);
     actions.appendChild(delBtn);
     bubble.appendChild(actions);
 
     wrap.appendChild(nameEl);
     wrap.appendChild(bubble);
+
+    if (messages[msgIdx].comment) renderComment(wrap, msgIdx);
+
     document.getElementById('messages').appendChild(wrap);
     saveSession();
   }
@@ -1365,6 +1579,7 @@
 
     document.querySelector('.setup-wrap').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
+    document.getElementById('notes-panel').classList.add('visible');
 
     buildHeader();
     buildSpeakerRow();
@@ -1495,8 +1710,8 @@
     input.focus();
   }
 
-  function appendMessage(personIdx, text, animate = true) {
-    messages.push({ person: personIdx, text });
+  function appendMessage(personIdx, text, animate = true, comment = '') {
+    messages.push({ person: personIdx, text, comment });
 
     const pos = position(personIdx);
     const col = palette(personIdx);
@@ -1532,23 +1747,63 @@
     editBtn.title = 'Edit';
     editBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l2 2-5.5 5.5H3v-1.5L8 2z"/></svg>`;
     editBtn.addEventListener('pointerdown', e => e.stopPropagation());
-    editBtn.addEventListener('click', () => editMessage(msgIdx, bubble));
+    editBtn.addEventListener('click', () => editMessage(parseInt(wrap.dataset.msgIdx, 10), bubble));
 
     const delBtn = document.createElement('button');
     delBtn.className = 'msg-action-btn';
     delBtn.title = 'Delete';
     delBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>`;
     delBtn.addEventListener('pointerdown', e => e.stopPropagation());
-    delBtn.addEventListener('click', () => deleteMessage(msgIdx));
+    delBtn.addEventListener('click', () => requestDeleteMessage(wrap, delBtn));
+
+    const commentBtn = document.createElement('button');
+    commentBtn.className = 'msg-action-btn';
+    commentBtn.title = 'Add note';
+    commentBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2h8v7H6.5L4 11V9H2z"/></svg>`;
+    commentBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    commentBtn.addEventListener('click', () => toggleComment(parseInt(wrap.dataset.msgIdx, 10), wrap));
 
     actions.appendChild(editBtn);
+    actions.appendChild(commentBtn);
     actions.appendChild(delBtn);
     bubble.appendChild(actions);
 
     wrap.appendChild(nameEl);
     wrap.appendChild(bubble);
+
+    // Restore saved comment if any
+    if (messages[msgIdx].comment) {
+      renderComment(wrap, msgIdx);
+    }
+
     document.getElementById('messages').appendChild(wrap);
     saveSession();
+  }
+
+  function renderComment(wrap, msgIdx) {
+    const note = document.createElement('div');
+    note.className = 'msg-comment';
+    note.textContent = '✦ ' + messages[msgIdx].comment;
+    note.title = 'Click to edit';
+    note.addEventListener('pointerdown', e => e.stopPropagation());
+    note.addEventListener('click', e => {
+      if (e.target.classList.contains('msg-comment-remove')) return;
+      toggleComment(parseInt(wrap.dataset.msgIdx, 10), wrap);
+    });
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'msg-comment-remove';
+    removeBtn.title = 'Remove note';
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    removeBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      messages[parseInt(wrap.dataset.msgIdx, 10)].comment = '';
+      saveSession();
+      note.remove();
+    });
+    note.appendChild(removeBtn);
+    wrap.appendChild(note);
   }
 
   function sendMsg() {
@@ -1576,6 +1831,7 @@
     setupCount = 2;
 
     document.getElementById('app').style.display = 'none';
+    document.getElementById('notes-panel').classList.remove('visible');
     document.getElementById('messages').innerHTML = '<div class="empty" id="empty-msg">The conversation begins here.</div>';
     document.getElementById('header-people').innerHTML = '';
 
@@ -1628,6 +1884,92 @@
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); textSpan.blur(); }
       if (e.key === 'Escape') { textSpan.textContent = original; messages[msgIdx].text = original; textSpan.blur(); }
     });
+  }
+
+  function toggleComment(msgIdx, wrap) {
+    // If an input is already open, close it
+    const existing = wrap.querySelector('.msg-comment-input');
+    if (existing) { existing.remove(); return; }
+
+    // Remove the displayed note while editing
+    const oldNote = wrap.querySelector('.msg-comment');
+    if (oldNote) oldNote.remove();
+
+    const input = document.createElement('textarea');
+    input.className = 'msg-comment-input';
+    input.rows = 2;
+    input.placeholder = 'add a note…';
+    input.value = messages[msgIdx].comment || '';
+    wrap.appendChild(input);
+    input.focus();
+
+    let saved = false;
+
+    function save() {
+      if (saved) return;
+      saved = true;
+      const val = input.value.trim();
+      input.remove();
+      messages[msgIdx].comment = val;
+      saveSession();
+      const old = wrap.querySelector('.msg-comment');
+      if (old) old.remove();
+      if (val) renderComment(wrap, msgIdx);
+    }
+
+    function cancel() {
+      saved = true;
+      input.remove();
+      if (messages[msgIdx].comment) renderComment(wrap, msgIdx);
+    }
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { cancel(); }
+    });
+    input.addEventListener('blur', save);
+    input.addEventListener('pointerdown', e => e.stopPropagation());
+  }
+
+  function requestDeleteMessage(wrap, delBtn) {
+    const isSame = pendingDelete && pendingDelete.delBtn === delBtn;
+    if (pendingDelete) pendingDelete.cancel();
+    if (isSame) return;
+
+    wrap.classList.add('pending-delete');
+    delBtn.style.color = '#b84a38';
+    delBtn.title = 'Press Enter to delete, Escape to cancel';
+
+    function confirm() {
+      cleanup();
+      deleteMessage(parseInt(wrap.dataset.msgIdx, 10));
+    }
+
+    function cancel() {
+      cleanup();
+    }
+
+    function cleanup() {
+      pendingDelete = null;
+      wrap.classList.remove('pending-delete');
+      delBtn.style.color = '';
+      delBtn.title = 'Delete';
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('pointerdown', onOutside, true);
+    }
+
+    function onKey(e) {
+      if (e.key === 'Enter') { e.preventDefault(); confirm(); }
+      if (e.key === 'Escape') { cancel(); }
+    }
+
+    function onOutside(e) {
+      if (e.target !== delBtn) cancel();
+    }
+
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('pointerdown', onOutside, true);
+    pendingDelete = { cancel, delBtn };
   }
 
   function deleteMessage(msgIdx) {
@@ -1756,8 +2098,8 @@
       localStorage.setItem(SESSION_KEY, JSON.stringify({
         names,
         messages: messages.map(m => m.type === 'sketch'
-          ? { person: m.person, type: 'sketch', dataUrl: m.dataUrl, canvasW: m.canvasW, canvasH: m.canvasH }
-          : { person: m.person, type: 'text', text: m.text }
+          ? { person: m.person, type: 'sketch', dataUrl: m.dataUrl, canvasW: m.canvasW, canvasH: m.canvasH, comment: m.comment || '' }
+          : { person: m.person, type: 'text', text: m.text, comment: m.comment || '' }
         )
       }));
     } catch (_) {}
@@ -1779,7 +2121,8 @@
       setupCount = names.length;
 
       document.querySelector('.setup-wrap').style.display = 'none';
-      document.getElementById('app').style.display   = 'flex';
+      document.getElementById('app').style.display = 'flex';
+      document.getElementById('notes-panel').classList.add('visible');
       buildHeader();
       buildSpeakerRow();
       setActive(0);
@@ -1788,8 +2131,8 @@
       if (empty) empty.remove();
 
       for (const m of savedMsgs) {
-        if (m.type === 'sketch') appendSketch(m.person, m.dataUrl, m.canvasW, m.canvasH, false);
-        else                     appendMessage(m.person, m.text, false);
+        if (m.type === 'sketch') appendSketch(m.person, m.dataUrl, m.canvasW, m.canvasH, false, m.comment || '');
+        else                     appendMessage(m.person, m.text, false, m.comment || '');
       }
 
       document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;

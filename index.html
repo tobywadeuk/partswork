@@ -366,7 +366,7 @@
   .setup-back-btn:hover { color: var(--ink-muted); }
 
   /* Combined top bar — session tabs (left) + app controls (right) on one row.
-     Right padding reserves space for the absolutely-positioned focus button. */
+     Right padding reserves space for the absolutely-positioned focus icon. */
   .app-top {
     display: flex;
     align-items: center;
@@ -465,8 +465,99 @@
     fill: none;
   }
 
-  /* ── Focus mode: hide top bar + notes panel entirely. Prompt bar reserves right
-     padding so the focus button doesn't overlap the Prompt button. ── */
+  /* ── Parts map button (fixed in top-left of viewport, subtle) ── */
+  /* Hidden by default; only shown when there are 2+ sessions and not in focus mode */
+  #parts-map-btn {
+    display: none;
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    z-index: 50;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    color: var(--ink-muted);
+    opacity: 0.28;
+    transition: opacity 0.25s, color 0.15s;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+  }
+  body.has-multi-session:not(.focus-mode-on) #parts-map-btn { display: flex; }
+  #parts-map-btn:hover { opacity: 1; color: var(--ink); }
+  #parts-map-btn svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+  @media (max-width: 880px) { #parts-map-btn { display: none; } }
+
+  /* ── Parts map modal ── */
+  .parts-map-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(44, 36, 32, 0.5);
+    z-index: 600;
+    align-items: center;
+    justify-content: center;
+  }
+  .parts-map-overlay.visible { display: flex; }
+
+  .parts-map-panel {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 16px;
+    padding: 20px 24px 24px;
+    width: 92%;
+    max-width: 600px;
+    height: 480px;
+    max-height: 80vh;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 12px 48px rgba(44, 36, 32, 0.22);
+  }
+
+  .parts-map-close {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--ink-faint);
+    font-size: 22px;
+    line-height: 1;
+    padding: 4px 8px;
+    transition: color 0.15s;
+  }
+  .parts-map-close:hover { color: var(--ink); }
+
+  .parts-map-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 6px;
+  }
+
+  #parts-map-svg {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* ── Focus mode: hide top bar + notes panel entirely. Prompt bar reserves
+     right padding so the focus icon doesn't overlap the Prompt button. ── */
   #app.focus-mode .app-top { display: none; }
   #app.focus-mode #prompt-bar { padding-right: 40px; }
   #app.focus-mode ~ #notes-panel { display: none !important; }
@@ -1249,6 +1340,11 @@
   </div>
 </div>
 
+<!-- Floating parts-map opener (outside #app, very subtle) -->
+<button id="parts-map-btn" type="button" title="parts map — see all parts across dialogues">
+  <svg viewBox="0 0 16 16"><line x1="4" y1="5" x2="12" y2="5"/><line x1="4" y1="5" x2="8" y2="12"/><line x1="12" y1="5" x2="8" y2="12"/><circle cx="4" cy="5" r="1.8" fill="currentColor"/><circle cx="12" cy="5" r="1.8" fill="currentColor"/><circle cx="8" cy="12" r="1.8" fill="currentColor"/></svg>
+</button>
+
 <!-- Notes Panel -->
 <div id="notes-panel">
   <div class="notes-header">notes</div>
@@ -1284,6 +1380,14 @@
       font-family:'DM Mono',monospace; font-size:12px; letter-spacing:0.04em;
       cursor:pointer;
     ">Got it — copy &amp; open Claude →</button>
+  </div>
+</div>
+
+<div id="parts-map" class="parts-map-overlay">
+  <div class="parts-map-panel">
+    <button class="parts-map-close" type="button" title="close">×</button>
+    <div class="parts-map-title">parts map</div>
+    <svg id="parts-map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
   </div>
 </div>
 
@@ -2807,6 +2911,8 @@
     if (!strip) return;
     strip.innerHTML = '';
     const ids = sessionList();
+    // Toggle body class so the parts-map button only shows with 2+ sessions
+    document.body.classList.toggle('has-multi-session', ids.length > 1);
     if (ids.length === 0) {
       strip.style.display = 'none';
       return;
@@ -3053,6 +3159,7 @@
   const FOCUS_ICON_OUT = `<svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1.5"/><rect x="7" y="7" width="2" height="2" fill="currentColor" stroke="none"/></svg>`;
   function setFocusMode(on) {
     document.getElementById('app').classList.toggle('focus-mode', on);
+    document.body.classList.toggle('focus-mode-on', on);
     focusBtn.innerHTML = on ? FOCUS_ICON_IN : FOCUS_ICON_OUT;
     focusBtn.title = on ? 'exit focus mode' : 'focus mode — hide tabs, controls, and notes';
     focusBtn.classList.toggle('active', on);
@@ -3082,6 +3189,217 @@
 
   document.getElementById('distil-guide').addEventListener('click', e => {
     if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
+  });
+
+  // ── Parts map ──
+  function svgEl(tag, attrs) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    return el;
+  }
+
+  function gatherPartsAndConnections() {
+    const partsByName = new Map(); // name → { name, color }
+    const connections = new Set(); // "a b" sorted
+
+    for (const sid in state.sessions) {
+      const s = state.sessions[sid];
+      const sNames = s.names || [];
+
+      // Add each named part with the color from its first occurrence
+      sNames.forEach((name, i) => {
+        if (!name || partsByName.has(name)) return;
+        partsByName.set(name, { name, color: palette(i).dot });
+      });
+
+      // Who has actually spoken in this session?
+      const speakers = new Set();
+      for (const m of (s.messages || [])) {
+        const name = sNames[m.person];
+        if (name) speakers.add(name);
+      }
+
+      // Pairwise connections within this session
+      const arr = Array.from(speakers);
+      for (let i = 0; i < arr.length; i++) {
+        for (let j = i + 1; j < arr.length; j++) {
+          const [a, b] = [arr[i], arr[j]].sort();
+          connections.add(`${a} ${b}`);
+        }
+      }
+    }
+
+    return {
+      parts: Array.from(partsByName.values()),
+      connections: Array.from(connections).map(s => s.split(' ')),
+    };
+  }
+
+  let partsMapRaf = null;
+
+  function cancelPartsMapAnimation() {
+    if (partsMapRaf) cancelAnimationFrame(partsMapRaf);
+    partsMapRaf = null;
+  }
+
+  function renderPartsMap() {
+    const { parts, connections } = gatherPartsAndConnections();
+    const svg = document.getElementById('parts-map-svg');
+    svg.innerHTML = '';
+    cancelPartsMapAnimation();
+
+    const W = 540, H = 380;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    if (parts.length === 0) {
+      const text = svgEl('text', {
+        x: W / 2, y: H / 2,
+        'text-anchor': 'middle', 'dominant-baseline': 'middle',
+        fill: '#b8a898',
+        'font-family': "'Lora', Georgia, serif",
+        'font-style': 'italic', 'font-size': '14',
+      });
+      text.textContent = 'no parts yet — start a dialogue';
+      svg.appendChild(text);
+      return;
+    }
+
+    const cx = W / 2, cy = H / 2;
+    const nodeR = 22;
+    const radius = parts.length === 1 ? 0 : Math.min(W, H) * 0.32;
+    const LABEL_DY = nodeR + 18;
+
+    // Build node objects with idle-float animation state
+    const nodeMap = new Map();
+    const nodes = parts.map((p, i) => {
+      const angle = parts.length === 1 ? 0 : (i / parts.length) * 2 * Math.PI - Math.PI / 2;
+      const node = {
+        name: p.name,
+        color: p.color,
+        baseX: cx + radius * Math.cos(angle),
+        baseY: cy + radius * Math.sin(angle),
+        x: 0, y: 0,
+        // Random phase/speed/amplitude so nodes drift independently
+        phaseX: Math.random() * Math.PI * 2,
+        phaseY: Math.random() * Math.PI * 2,
+        speedX: 0.00045 + Math.random() * 0.00035,
+        speedY: 0.00045 + Math.random() * 0.00035,
+        ampX: 5 + Math.random() * 4,
+        ampY: 5 + Math.random() * 4,
+      };
+      node.x = node.baseX;
+      node.y = node.baseY;
+      nodeMap.set(p.name, node);
+      return node;
+    });
+
+    // Connection lines first (under nodes), keep references for animation
+    const lineEls = [];
+    for (const [a, b] of connections) {
+      const na = nodeMap.get(a), nb = nodeMap.get(b);
+      if (!na || !nb) continue;
+      const line = svgEl('line', {
+        x1: na.x, y1: na.y, x2: nb.x, y2: nb.y,
+        stroke: '#b8a898', 'stroke-width': '1.2', opacity: '0.55',
+      });
+      svg.appendChild(line);
+      lineEls.push({ el: line, from: na, to: nb });
+    }
+
+    // Convert client coords to SVG viewBox coords
+    function clientToSvg(clientX, clientY) {
+      const pt = svg.createSVGPoint();
+      pt.x = clientX;
+      pt.y = clientY;
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return { x: clientX, y: clientY };
+      return pt.matrixTransform(ctm.inverse());
+    }
+
+    // Nodes + labels (with drag handling)
+    for (const node of nodes) {
+      node.circle = svgEl('circle', {
+        cx: node.x, cy: node.y, r: nodeR,
+        fill: node.color,
+        style: 'cursor: grab;',
+      });
+      svg.appendChild(node.circle);
+      node.label = svgEl('text', {
+        x: node.x, y: node.y + LABEL_DY,
+        'text-anchor': 'middle',
+        fill: '#1a1410',
+        'font-family': "'DM Mono', monospace",
+        'font-size': '11', 'letter-spacing': '0.04em',
+        style: 'pointer-events: none; user-select: none;',
+      });
+      node.label.textContent = node.name;
+      svg.appendChild(node.label);
+
+      node.circle.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        node.circle.setPointerCapture(e.pointerId);
+        node.circle.style.cursor = 'grabbing';
+        node.dragging = true;
+        const start = clientToSvg(e.clientX, e.clientY);
+        const offX = node.x - start.x;
+        const offY = node.y - start.y;
+
+        function onMove(ev) {
+          const p = clientToSvg(ev.clientX, ev.clientY);
+          node.baseX = node.x = p.x + offX;
+          node.baseY = node.y = p.y + offY;
+        }
+        function onUp(ev) {
+          node.dragging = false;
+          node.circle.style.cursor = 'grab';
+          try { node.circle.releasePointerCapture(ev.pointerId); } catch (_) {}
+          document.removeEventListener('pointermove', onMove);
+          document.removeEventListener('pointerup', onUp);
+          document.removeEventListener('pointercancel', onUp);
+        }
+        document.addEventListener('pointermove', onMove);
+        document.addEventListener('pointerup', onUp);
+        document.addEventListener('pointercancel', onUp);
+      });
+    }
+
+    // Animate — dragging nodes hold their position, others drift
+    function step(t) {
+      for (const n of nodes) {
+        if (!n.dragging) {
+          n.x = n.baseX + Math.sin(t * n.speedX + n.phaseX) * n.ampX;
+          n.y = n.baseY + Math.cos(t * n.speedY + n.phaseY) * n.ampY;
+        }
+        n.circle.setAttribute('cx', n.x);
+        n.circle.setAttribute('cy', n.y);
+        n.label.setAttribute('x', n.x);
+        n.label.setAttribute('y', n.y + LABEL_DY);
+      }
+      for (const l of lineEls) {
+        l.el.setAttribute('x1', l.from.x);
+        l.el.setAttribute('y1', l.from.y);
+        l.el.setAttribute('x2', l.to.x);
+        l.el.setAttribute('y2', l.to.y);
+      }
+      partsMapRaf = requestAnimationFrame(step);
+    }
+    partsMapRaf = requestAnimationFrame(step);
+  }
+
+  function closePartsMap() {
+    cancelPartsMapAnimation();
+    document.getElementById('parts-map').classList.remove('visible');
+  }
+
+  document.getElementById('parts-map-btn').addEventListener('click', () => {
+    renderPartsMap();
+    document.getElementById('parts-map').classList.add('visible');
+  });
+  document.querySelector('.parts-map-close').addEventListener('click', closePartsMap);
+  document.getElementById('parts-map').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closePartsMap();
   });
 
   function toggleGuide() {

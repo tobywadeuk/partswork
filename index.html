@@ -150,7 +150,7 @@
 
   .setup-privacy {
     position: absolute;
-    top: calc(100% + 10px);
+    bottom: calc(100% + 10px);
     right: 0;
     font-family: 'DM Mono', monospace;
     font-size: 10px;
@@ -211,14 +211,14 @@
   .guide-section p {
     margin: 0;
     font-family: 'DM Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.6;
     color: var(--ink-muted);
   }
 
   .start-btn {
     font-family: 'DM Mono', monospace;
-    font-size: 12px;
+    font-size: 13px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     padding: 11px 24px;
@@ -268,7 +268,100 @@
     height: min(720px, 92vh);
     flex-direction: column;
     overflow: hidden;
+    position: relative;
   }
+
+  /* ── Tab Strip ── */
+  #tab-strip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 10px 14px 9px;
+    border-bottom: 1px solid var(--rule);
+  }
+  #tab-strip:empty { display: none; }
+
+  .tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 6px 5px 12px;
+    border-radius: 14px;
+    border: 1px solid var(--rule);
+    background: transparent;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-muted);
+    cursor: pointer;
+    max-width: 170px;
+    letter-spacing: 0.02em;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .tab.active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  .tab-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tab-close {
+    font-size: 13px;
+    line-height: 1;
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s, background 0.15s;
+  }
+  .tab:hover .tab-close { opacity: 0.55; }
+  .tab.active .tab-close { opacity: 0.45; }
+  .tab-close:hover { opacity: 1 !important; background: rgba(0,0,0,0.08); }
+  .tab.active .tab-close:hover { background: rgba(255,255,255,0.18); }
+  .tab.pending-delete .tab-close { opacity: 1; }
+  .tab.dragging { opacity: 0.35; }
+  .tab.drag-over { box-shadow: -2px 0 0 var(--ink-muted); }
+
+  .tab-add {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px solid var(--rule);
+    background: transparent;
+    cursor: pointer;
+    color: var(--ink-faint);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab-add:hover { color: var(--ink-muted); border-color: var(--ink-faint); }
+
+  .setup-back-btn {
+    align-self: flex-start;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: -16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--ink-faint);
+    transition: color 0.15s;
+  }
+  .setup-back-btn:hover { color: var(--ink-muted); }
 
   .app-header {
     padding: 14px 18px;
@@ -289,14 +382,14 @@
     align-items: center;
     gap: 6px;
     font-family: 'DM Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--ink-muted);
     letter-spacing: 0.04em;
   }
 
   .speaker-rename-input {
     font-family: 'DM Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: inherit;
     letter-spacing: 0.04em;
     border: none;
@@ -322,7 +415,7 @@
 
   .header-btn {
     font-family: 'DM Mono', monospace;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--ink-faint);
     background: none;
     border: none;
@@ -333,6 +426,43 @@
   }
 
   .header-btn:hover { color: var(--ink-muted); }
+  .header-btn.active { color: var(--ink); }
+
+  /* ── Focus button (floating icon, top-right of #app) ── */
+  #focus-btn {
+    position: absolute;
+    top: 11px;
+    right: 14px;
+    z-index: 10;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: var(--ink-faint);
+    opacity: 0.45;
+    transition: opacity 0.2s, color 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+  }
+  #focus-btn:hover { opacity: 1; color: var(--ink-muted); }
+  #focus-btn.active { color: var(--ink); opacity: 0.85; }
+  #focus-btn svg {
+    width: 13px;
+    height: 13px;
+    display: block;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  /* ── Focus mode: hide tabs, header controls, notes panel ── */
+  #app.focus-mode #tab-strip { display: none; }
+  #app.focus-mode .header-controls { display: none; }
+  #app.focus-mode ~ #notes-panel { display: none !important; }
 
   /* Prompt bar */
   #prompt-bar {
@@ -348,7 +478,7 @@
   #prompt-text {
     flex: 1;
     font-family: 'Lora', serif;
-    font-size: 13px;
+    font-size: 14px;
     font-style: italic;
     color: var(--ink-muted);
     line-height: 1.4;
@@ -381,6 +511,23 @@
 
   #prompt-btn:hover { border-color: var(--ink-muted); color: var(--ink); }
 
+  #prompt-clear {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 6px;
+    color: var(--ink-faint);
+    font-size: 15px;
+    line-height: 1;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, color 0.15s;
+  }
+  #prompt-bar.has-prompt #prompt-clear { pointer-events: auto; }
+  #prompt-bar.has-prompt:hover #prompt-clear { opacity: 0.5; }
+  #prompt-clear:hover { opacity: 1 !important; color: var(--ink-muted); }
+
   /* Messages */
   .messages {
     flex: 1;
@@ -412,7 +559,9 @@
     flex-direction: column;
     max-width: 72%;
     animation: fadeUp 0.2s ease;
+    cursor: grab;
   }
+  .msg-wrap:active { cursor: grabbing; }
 
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(6px); }
@@ -526,17 +675,102 @@
     resize: none;
     background: transparent;
     font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    line-height: 1.7;
+    font-size: 13px;
+    line-height: 1.65;
     color: var(--ink-muted);
     padding: 14px 16px;
-    box-sizing: border-box;
   }
 
   #notes-area::placeholder {
     color: var(--ink-faint);
     font-style: italic;
+    font-size: 11px;
   }
+
+  /* ── Note tabs (inside notes panel) — vertical, rectangular list ── */
+  #note-tab-strip {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule);
+    flex-shrink: 0;
+    max-height: 35vh;
+    overflow-y: auto;
+  }
+  #note-tab-strip:empty { display: none; }
+  #note-tab-strip::-webkit-scrollbar { width: 4px; }
+  #note-tab-strip::-webkit-scrollbar-track { background: transparent; }
+  #note-tab-strip::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
+
+  .note-tab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 7px 8px 7px 11px;
+    border-radius: 5px;
+    border: 1px solid var(--rule);
+    background: transparent;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-muted);
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    letter-spacing: 0.02em;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .note-tab:hover { border-color: var(--ink-faint); color: var(--ink); }
+  .note-tab.active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  .note-tab-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  .note-tab-close {
+    font-size: 13px;
+    line-height: 1;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s, background 0.15s;
+  }
+  .note-tab:hover .note-tab-close { opacity: 0.6; }
+  .note-tab.active .note-tab-close { opacity: 0.55; }
+  .note-tab-close:hover { opacity: 1 !important; background: rgba(0,0,0,0.08); }
+  .note-tab.active .note-tab-close:hover { background: rgba(255,255,255,0.18); }
+  .note-tab.pending-delete .note-tab-close { opacity: 1; }
+
+  .note-tab-add {
+    width: 100%;
+    padding: 7px 8px;
+    border-radius: 5px;
+    border: 1px dashed var(--rule);
+    background: transparent;
+    cursor: pointer;
+    color: var(--ink-faint);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    line-height: 1;
+    text-align: center;
+    letter-spacing: 0.04em;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .note-tab-add:hover { color: var(--ink-muted); border-color: var(--ink-faint); }
 
   /* ── Message comments ── */
   .msg-comment {
@@ -622,7 +856,7 @@
     border: 1px solid var(--rule);
     background: transparent;
     font-family: 'DM Mono', monospace;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--ink-muted);
     cursor: pointer;
     white-space: nowrap;
@@ -727,9 +961,6 @@
 
   .msg-sketch { display: block; width: 100%; border-radius: 8px; }
 
-  .msg-wrap { cursor: grab; }
-  .msg-wrap:active { cursor: grabbing; }
-
   .speaker-add-btn {
     color: var(--ink-faint);
     padding: 6px 10px;
@@ -745,7 +976,7 @@
     border: 1px solid var(--ink-muted);
     background: transparent;
     font-family: 'DM Mono', monospace;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--ink);
     outline: none;
     width: 130px;
@@ -803,6 +1034,79 @@
     stroke-linejoin: round;
   }
 
+  /* ── First-run tour ── */
+  .tour-highlight {
+    position: fixed;
+    z-index: 480;
+    border: 2px solid var(--paper);
+    border-radius: 8px;
+    pointer-events: none;
+    box-shadow: 0 0 0 9999px rgba(26, 20, 16, 0.38);
+    animation: fadeUp 0.25s ease;
+  }
+
+  .tour-tooltip {
+    position: fixed;
+    z-index: 500;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 16px 18px 14px;
+    max-width: 290px;
+    box-shadow: 0 10px 36px rgba(0,0,0,0.18);
+    animation: fadeUp 0.25s ease;
+  }
+
+  .tour-counter {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 8px;
+  }
+
+  .tour-text {
+    margin: 0 0 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+
+  .tour-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .tour-skip {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-faint);
+    padding: 4px 0;
+    transition: color 0.15s;
+  }
+  .tour-skip:hover { color: var(--ink-muted); }
+
+  .tour-next {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    padding: 7px 16px;
+    border-radius: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .tour-next:hover { opacity: 0.85; }
+
   /* Responsive */
   @media (max-width: 880px) {
     #notes-panel { display: none !important; }
@@ -814,6 +1118,7 @@
     #setup { border-radius: var(--radius); padding: 36px 24px 32px; max-width: 100%; }
     #app { position: fixed; bottom: 0; left: 0; right: 0; border-radius: 0; height: 100dvh; max-width: 100%; padding-top: env(safe-area-inset-top, 0px); box-sizing: border-box; }
     #notes-panel { display: none !important; }
+    #tab-strip { display: none !important; }
     .msg-wrap { max-width: 82%; }
     .msg-input, .name-row input, .speaker-new-input { font-size: 16px; }
   }
@@ -824,6 +1129,7 @@
 <!-- Setup Screen -->
 <div class="setup-wrap">
   <div id="setup">
+    <button class="setup-back-btn" id="setup-back" style="display:none">← back to current dialogue</button>
     <div class="setup-header">
       <h1>Start a dialogue</h1>
       <p id="setup-subtitle">Name the voices in this conversation</p>
@@ -839,31 +1145,51 @@
   <div class="guide" id="guide" style="display:none">
     <div class="guide-section">
       <span class="guide-label">dialogue</span>
-      <p>Name the voices — parts of you, or real people. Type as each speaker and press Enter or tap send. Switch speakers with the buttons at the bottom.</p>
+      <p>Name the voices — parts of you, or real people. Type as each speaker, press Enter or tap send. Switch speakers with the chips below, or ⌘1, ⌘2…</p>
+    </div>
+    <div class="guide-section">
+      <span class="guide-label">rename &amp; add speakers</span>
+      <p>Double-click a speaker chip to rename it. Tap + on the chip row to add another (up to 4).</p>
     </div>
     <div class="guide-section">
       <span class="guide-label">sketch</span>
-      <p>Tap the pencil icon to draw instead of write — useful for images, diagrams, or anything words can't hold.</p>
+      <p>Tap the pencil icon to draw instead of write — for diagrams, images, or anything words can't hold.</p>
     </div>
     <div class="guide-section">
-      <span class="guide-label">edit &amp; delete</span>
-      <p>Hover over any message to reveal options to edit or remove it.</p>
+      <span class="guide-label">message actions</span>
+      <p>Hover any message: copy, add a note, edit, or delete. Delete asks you to press Enter to confirm.</p>
     </div>
     <div class="guide-section">
       <span class="guide-label">reassign</span>
       <p>Drag a message left or right to move it to a different speaker.</p>
     </div>
     <div class="guide-section">
+      <span class="guide-label">prompts</span>
+      <p>Press the prompt button for a random reflection question to deepen the dialogue.</p>
+    </div>
+    <div class="guide-section">
+      <span class="guide-label">dialogues (tabs)</span>
+      <p>Up to 3 conversations open at once. Click + to start another, drag tabs to reorder, ⌥1–⌥3 to switch between them, × to close. Desktop only.</p>
+    </div>
+    <div class="guide-section">
+      <span class="guide-label">notes</span>
+      <p>A side panel for observations and patterns. + saves the current note and starts a new one; switch between them as tabs.</p>
+    </div>
+    <div class="guide-section">
       <span class="guide-label">recap</span>
-      <p>Copies your conversation to the clipboard and opens Claude — paste it in for a clear, distilled summary.</p>
+      <p>Copies your conversation plus a summarising prompt to the clipboard, then opens Claude — paste it in for a distilled summary.</p>
     </div>
     <div class="guide-section">
       <span class="guide-label">export</span>
-      <p>Save as a styled image to share, or a plain text file to keep.</p>
+      <p>Save as a styled image to share, or a plain text file to keep. Both include comments and notes.</p>
+    </div>
+    <div class="guide-section">
+      <span class="guide-label">load</span>
+      <p>Drag a .txt export onto the setup card (or use "load conversation") to bring a past dialogue back in.</p>
     </div>
     <div class="guide-section">
       <span class="guide-label">auto-save</span>
-      <p>Your conversation saves automatically. Refresh or close the tab — it'll be here when you return.</p>
+      <p>Everything persists automatically — refresh or close the tab, it'll be here when you return.</p>
     </div>
   </div>
   <p class="setup-privacy">your words stay on your device</p>
@@ -872,6 +1198,7 @@
 
 <!-- Chat App -->
 <div id="app">
+  <div id="tab-strip"></div>
   <div class="app-header">
     <div class="header-people" id="header-people"></div>
     <div class="header-controls">
@@ -881,9 +1208,13 @@
       <button class="header-btn" id="reset-btn" onclick="resetAll()">reset</button>
     </div>
   </div>
+  <button id="focus-btn" type="button" title="focus mode — hide tabs, controls, and notes">
+    <svg viewBox="0 0 16 16"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"/></svg>
+  </button>
 
   <div id="prompt-bar">
     <div id="prompt-text" class="placeholder">press prompt for a question</div>
+    <button id="prompt-clear" type="button" title="Clear prompt">×</button>
     <button id="prompt-btn">Prompt</button>
   </div>
 
@@ -915,6 +1246,7 @@
 <!-- Notes Panel -->
 <div id="notes-panel">
   <div class="notes-header">notes</div>
+  <div id="note-tab-strip"></div>
   <textarea id="notes-area" placeholder="observations, patterns, things to return to…" spellcheck="false"></textarea>
 </div>
 
@@ -951,7 +1283,10 @@
 
 <script>
   const MAX_PEOPLE = 4;
-  const SESSION_KEY = 'partswork_session';
+  const MAX_SESSIONS = 3;
+  const STATE_KEY = 'inner_dialogues_state';
+  const LEGACY_SESSION_KEY = 'partswork_session';
+  const LEGACY_NOTES_KEY = 'partswork_notes';
 
   const PALETTE = [
     { dot: '#7a6e62', bg: '#e8e0d4' },
@@ -982,6 +1317,7 @@
   let messages = [];
   let dragging = null;
   let pendingDelete = null;
+  let state = { activeId: null, sessions: {} };
   const DRAG_THRESHOLD = 72;
 
   let sketchMode = false;
@@ -1058,15 +1394,38 @@
     }
   }
 
+  // ── Notes ──
+  // Declared before restoreSession() so hydrateActiveSession can write to it
+  // during initial restore without hitting a TDZ error.
+  const notesArea = document.getElementById('notes-area');
+  function flushNoteFromTextarea() {
+    const note = currentNote();
+    if (!note) return;
+    if (note.content !== notesArea.value) {
+      note.content = notesArea.value;
+      note.updatedAt = Date.now();
+    }
+    saveSession();
+  }
+
+  notesArea.addEventListener('input', () => {
+    const note = currentNote();
+    if (!note) return;
+    note.content = notesArea.value;
+    note.updatedAt = Date.now();
+    saveSession();
+    // Update only the active tab's label so we don't rebuild the strip on every keystroke
+    const activeLabel = document.querySelector('.note-tab.active .note-tab-label');
+    if (activeLabel) activeLabel.textContent = noteLabel(note);
+  });
+
+  // Defensive saves — catch any keystrokes that didn't fire input, and any state
+  // that's still in the textarea but not yet flushed to the note when the page closes.
+  notesArea.addEventListener('blur', flushNoteFromTextarea);
+  window.addEventListener('beforeunload', flushNoteFromTextarea);
+
   renderNameFields();
   restoreSession();
-
-  // ── Notes ──
-  const notesArea = document.getElementById('notes-area');
-  notesArea.value = localStorage.getItem('partswork_notes') || '';
-  notesArea.addEventListener('input', () => {
-    localStorage.setItem('partswork_notes', notesArea.value);
-  });
 
   // ── Prompts ──
   const prompts = [
@@ -1085,6 +1444,16 @@
     "Where are you placing yourself in relation to this — above, below, or alongside?",
     "What would it feel like to be on the same level as this?",
     "What would change if you stopped trying to fix this and just walked beside it?",
+    "What is the underlying positive intent?",
+    "What qualities do you have, or what are some of your good qualities?",
+    "What are some of your highest values?",
+    "What do you believe about yourself, other people, and the world as a whole?",
+    "What were some of your most formative experiences?",
+    "What are you trying to gain with this behavior?",
+    "What are you trying to avoid with this behaviour?",
+    "What are you afraid of?",
+    "What is something you don't want to admit to yourself?",
+    "What is your polar-pair, opposite or counterpart?",
   ];
 
   let lastPromptIdx = -1;
@@ -1099,6 +1468,15 @@
     void el.offsetWidth;
     el.textContent = prompts[idx];
     el.classList.add('visible');
+    document.getElementById('prompt-bar').classList.add('has-prompt');
+  });
+
+  document.getElementById('prompt-clear').addEventListener('click', () => {
+    const el = document.getElementById('prompt-text');
+    el.textContent = 'press prompt for a question';
+    el.className = 'placeholder';
+    document.getElementById('prompt-bar').classList.remove('has-prompt');
+    lastPromptIdx = -1;
   });
 
   // ── Load conversation ──
@@ -1135,6 +1513,11 @@
 
   document.getElementById('load-convo-btn').addEventListener('click', () => {
     document.getElementById('load-convo-file').click();
+  });
+
+  document.getElementById('setup-back').addEventListener('click', () => {
+    if (!current()) return;
+    showApp();
   });
 
   document.getElementById('load-convo-file').addEventListener('change', e => {
@@ -1221,26 +1604,31 @@
 
     // Pre-compute each message
     const SP = 5; // sketch padding
+    const SIDE_MARGIN = Math.round(W * 0.12);
+    const MAX_SIDE_BW = Math.round((W - PAD_H * 2) * 0.58);
     const COMMENT_FONT = `italic 400 ${COMMENT_SIZE}px 'DM Mono', monospace`;
     const items = messages.map(m => {
+      const pos = position(m.person);
+      const isSide = pos === 'mid-left' || pos === 'mid-right';
+      const maxBW = isSide ? MAX_SIDE_BW : MAX_BW;
       let item;
       if (m.type === 'sketch') {
         const img = sketchImgs[m.dataUrl];
         const ar  = m.canvasW / m.canvasH;
-        const bubbleW = MAX_BW;
+        const bubbleW = maxBW;
         const bubbleH = Math.round((bubbleW - SP * 2) / ar) + SP * 2;
-        item = { ...m, img, lines: [], bubbleW, bubbleH };
+        item = { ...m, img, lines: [], bubbleW, bubbleH, pos };
       } else {
-        const lines      = wrapText(m.text, MAX_BW);
+        const lines      = wrapText(m.text, maxBW);
         const textBlockH = (lines.length - 1) * TEXT_LH + TEXT_SIZE;
         const bubbleH    = BPY * 2 + textBlockH;
         scratch.font = `400 ${TEXT_SIZE}px 'Lora', Georgia, serif`;
-        const maxLineW = Math.max(...lines.map(l => scratch.measureText(l).width));
-        const bubbleW  = Math.min(MAX_BW, maxLineW + BPX * 2 + 4);
-        item = { ...m, lines, bubbleH, bubbleW };
+        const maxLineW = lines.length ? Math.max(...lines.map(l => scratch.measureText(l).width)) : 0;
+        const bubbleW  = Math.min(maxBW, maxLineW + BPX * 2 + 4);
+        item = { ...m, lines, bubbleH, bubbleW, pos };
       }
       if (m.comment) {
-        item.commentLines = wrapText('✦ ' + m.comment, MAX_BW, COMMENT_FONT, 4);
+        item.commentLines = wrapText('✦ ' + m.comment, maxBW, COMMENT_FONT, 4);
         item.commentH = item.commentLines.length * COMMENT_LH + COMMENT_GAP;
       } else {
         item.commentLines = [];
@@ -1249,8 +1637,12 @@
       return item;
     });
 
-    // Notes section sizing
-    const notesText = (document.getElementById('notes-area').value || '').trim();
+    // Notes section sizing — combine all notes from the active session
+    const sessionForExport = current();
+    const notesText = (sessionForExport?.notes || [])
+      .map(n => (n.content || '').trim())
+      .filter(Boolean)
+      .join('\n\n---\n\n');
     let notesLines = [];
     let notesH = 0;
     if (notesText) {
@@ -1295,28 +1687,31 @@
     // Messages
     let y = HEADER_H + PAD_V;
     for (const m of items) {
-      const pos = position(m.person);
+      const pos = m.pos;
       const col = palette(m.person);
 
       let bx;
-      if (pos === 'left')       bx = PAD_H;
-      else if (pos === 'right') bx = W - PAD_H - m.bubbleW;
-      else                      bx = (W - m.bubbleW) / 2;
+      if      (pos === 'left')      bx = PAD_H;
+      else if (pos === 'right')     bx = W - PAD_H - m.bubbleW;
+      else if (pos === 'mid')       bx = (W - m.bubbleW) / 2;
+      else if (pos === 'mid-left')  bx = PAD_H + SIDE_MARGIN;
+      else /* mid-right */          bx = W - PAD_H - SIDE_MARGIN - m.bubbleW;
 
       // Name label
+      const isRight = pos === 'right' || pos === 'mid-right';
       ctx.font = `400 10px 'DM Mono', monospace`;
       ctx.fillStyle = '#b8a898';
       ctx.textBaseline = 'alphabetic';
-      ctx.textAlign = pos === 'right' ? 'right' : pos === 'mid' ? 'center' : 'left';
-      const nameX = pos === 'right' ? bx + m.bubbleW
-                  : pos === 'mid'   ? bx + m.bubbleW / 2
+      ctx.textAlign = isRight ? 'right' : pos === 'mid' ? 'center' : 'left';
+      const nameX = isRight           ? bx + m.bubbleW
+                  : pos === 'mid'     ? bx + m.bubbleW / 2
                   : bx + 4;
       ctx.fillText(names[m.person], nameX, y + 12);
 
       // Bubble
       const by  = y + NAME_H;
-      const blr = pos === 'left'  ? TAIL_R : R;
-      const brr = pos === 'right' ? TAIL_R : R;
+      const blr = (pos === 'left' || pos === 'mid-left')   ? TAIL_R : R;
+      const brr = (pos === 'right' || pos === 'mid-right') ? TAIL_R : R;
       ctx.fillStyle = col.bg;
       ctx.beginPath();
       if (ctx.roundRect) {
@@ -1352,11 +1747,12 @@
       if (m.commentLines && m.commentLines.length) {
         ctx.font = COMMENT_FONT;
         ctx.fillStyle = '#b8a898';
-        ctx.textAlign = 'left';
+        ctx.textAlign = isRight ? 'right' : 'left';
         ctx.textBaseline = 'top';
         const cy = by + m.bubbleH + COMMENT_GAP;
+        const cx = isRight ? bx + m.bubbleW - 4 : bx + 4;
         m.commentLines.forEach((line, i) => {
-          ctx.fillText(line, bx + 4, cy + i * COMMENT_LH);
+          ctx.fillText(line, cx, cy + i * COMMENT_LH);
         });
       }
 
@@ -1401,8 +1797,12 @@
       const line = m.type === 'sketch' ? `${names[m.person]}: [sketch]` : `${names[m.person]}: ${m.text}`;
       return m.comment ? `${line}\n    ✦ ${m.comment}` : line;
     }).join('\n\n');
-    const notesText = (document.getElementById('notes-area').value || '').trim();
-    const notesSection = notesText ? `\n\n${rule}\nNotes\n${rule}\n\n${notesText}` : '';
+    const session = current();
+    const allNotes = (session?.notes || [])
+      .map(n => (n.content || '').trim())
+      .filter(Boolean)
+      .join('\n\n---\n\n');
+    const notesSection = allNotes ? `\n\n${rule}\nNotes\n${rule}\n\n${allNotes}` : '';
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([`${title}\n${rule}\n\n${body}\n\n${rule}${notesSection}`], { type: 'text/plain' }));
     a.download = `${title}.txt`;
@@ -1429,7 +1829,7 @@
     clearSketch();
 
     // Build color palette
-    const palette = document.getElementById('sketch-colors');
+    const colorContainer = document.getElementById('sketch-colors');
     SKETCH_COLORS.forEach(col => {
       const sw = document.createElement('button');
       sw.className = 'sketch-swatch' + (col === sketchColor ? ' active' : '');
@@ -1438,7 +1838,7 @@
         sketchColor = col;
         document.querySelectorAll('.sketch-swatch').forEach(s => s.classList.toggle('active', s === sw));
       });
-      palette.appendChild(sw);
+      colorContainer.appendChild(sw);
     });
 
     document.getElementById('sketch-clear-btn').addEventListener('click', clearSketch);
@@ -1508,7 +1908,7 @@
     toggleSketchMode(false);
   }
 
-  function appendSketch(personIdx, dataUrl, canvasW, canvasH, animate = true, comment = '') {
+  function appendSketch(personIdx, dataUrl, canvasW, canvasH, animate = true, comment = '', _save = true) {
     messages.push({ person: personIdx, type: 'sketch', dataUrl, canvasW, canvasH, comment });
     const msgIdx = messages.length - 1;
     const pos = position(personIdx);
@@ -1564,7 +1964,7 @@
     if (messages[msgIdx].comment) renderComment(wrap, msgIdx);
 
     document.getElementById('messages').appendChild(wrap);
-    saveSession();
+    if (_save) saveSession();
   }
 
   // ── Start chat ──
@@ -1574,25 +1974,31 @@
 
   function startChat(loadedMessages) {
     const inputs = document.querySelectorAll('#name-fields input');
-    names = Array.from(inputs).map((el, i) => el.value.trim() || `${placeholderTerm} ${i + 1}`);
-    messages = [];
-
-    document.querySelector('.setup-wrap').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
-    document.getElementById('notes-panel').classList.add('visible');
-
-    buildHeader();
-    buildSpeakerRow();
-    setActive(0);
+    const inputNames = Array.from(inputs).map((el, i) => el.value.trim() || `${placeholderTerm} ${i + 1}`);
+    if (!createSession(inputNames)) return;
+    showApp();
+    hydrateActiveSession();
 
     if (loadedMessages && loadedMessages.length > 0) {
       const empty = document.getElementById('empty-msg');
       if (empty) empty.remove();
-      for (const m of loadedMessages) appendMessage(m.person, m.text, false);
+      for (const m of loadedMessages) appendMessage(m.person, m.text, false, '', false);
+      saveSession();
       document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
     }
 
     document.getElementById('msg-input').focus();
+  }
+
+  function showApp() {
+    document.querySelector('.setup-wrap').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('notes-panel').classList.add('visible');
+  }
+
+  function hideApp() {
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('notes-panel').classList.remove('visible');
   }
 
   function buildHeader() {
@@ -1628,6 +2034,7 @@
         const input = document.createElement('input');
         input.className = 'speaker-rename-input';
         input.value = names[i];
+        input.maxLength = 28;
         input.style.width = Math.max(40, nameSpan.offsetWidth + 8) + 'px';
         nameSpan.replaceWith(input);
         input.focus();
@@ -1657,6 +2064,8 @@
       addBtn.addEventListener('click', showAddSpeakerInput);
       row.appendChild(addBtn);
     }
+
+    renderTabs();
   }
 
   function showAddSpeakerInput() {
@@ -1710,7 +2119,7 @@
     input.focus();
   }
 
-  function appendMessage(personIdx, text, animate = true, comment = '') {
+  function appendMessage(personIdx, text, animate = true, comment = '', _save = true) {
     messages.push({ person: personIdx, text, comment });
 
     const pos = position(personIdx);
@@ -1742,6 +2151,23 @@
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
 
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'msg-action-btn';
+    copyBtn.title = 'Copy message';
+    copyBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="6" height="6" rx="1"/><path d="M2 7V2.5a1 1 0 0 1 1-1H7"/></svg>`;
+    copyBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    copyBtn.addEventListener('click', () => {
+      const m = messages[parseInt(wrap.dataset.msgIdx, 10)];
+      navigator.clipboard.writeText(m?.text || '').then(() => showToast('copied'));
+    });
+
+    const commentBtn = document.createElement('button');
+    commentBtn.className = 'msg-action-btn';
+    commentBtn.title = 'Add note';
+    commentBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2h8v7H6.5L4 11V9H2z"/></svg>`;
+    commentBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    commentBtn.addEventListener('click', () => toggleComment(parseInt(wrap.dataset.msgIdx, 10), wrap));
+
     const editBtn = document.createElement('button');
     editBtn.className = 'msg-action-btn';
     editBtn.title = 'Edit';
@@ -1756,15 +2182,9 @@
     delBtn.addEventListener('pointerdown', e => e.stopPropagation());
     delBtn.addEventListener('click', () => requestDeleteMessage(wrap, delBtn));
 
-    const commentBtn = document.createElement('button');
-    commentBtn.className = 'msg-action-btn';
-    commentBtn.title = 'Add note';
-    commentBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2h8v7H6.5L4 11V9H2z"/></svg>`;
-    commentBtn.addEventListener('pointerdown', e => e.stopPropagation());
-    commentBtn.addEventListener('click', () => toggleComment(parseInt(wrap.dataset.msgIdx, 10), wrap));
-
-    actions.appendChild(editBtn);
+    actions.appendChild(copyBtn);
     actions.appendChild(commentBtn);
+    actions.appendChild(editBtn);
     actions.appendChild(delBtn);
     bubble.appendChild(actions);
 
@@ -1777,7 +2197,7 @@
     }
 
     document.getElementById('messages').appendChild(wrap);
-    saveSession();
+    if (_save) saveSession();
   }
 
   function renderComment(wrap, msgIdx) {
@@ -1823,27 +2243,10 @@
   }
 
   function resetAll() {
-    if (!confirm('Clear the conversation and start over?')) return;
-    clearSession();
-    messages = [];
-    names = [];
-    active = 0;
-    setupCount = 2;
-
-    document.getElementById('app').style.display = 'none';
-    document.getElementById('notes-panel').classList.remove('visible');
-    document.getElementById('messages').innerHTML = '<div class="empty" id="empty-msg">The conversation begins here.</div>';
-    document.getElementById('header-people').innerHTML = '';
-
-    const promptEl = document.getElementById('prompt-text');
-    promptEl.textContent = 'press prompt for a question';
-    promptEl.className = 'placeholder';
-    lastPromptIdx = -1;
-
-    renderNameFields();
-    document.querySelector('.setup-wrap').style.display = '';
-    document.getElementById('setup').style.display = 'flex';
-    document.querySelector('#name-fields input').focus();
+    if (!current()) return;
+    if (!confirm('Clear this dialogue?')) return;
+    if (pendingDelete) pendingDelete.cancel();
+    deleteSession(state.activeId);
   }
 
   document.addEventListener('keydown', e => {
@@ -1853,6 +2256,23 @@
       e.preventDefault();
       setActive(n - 1);
     }
+  });
+
+  // Option/Alt + 1/2/3 switches between session tabs.
+  // Using e.code instead of e.key because Option+1 on Mac otherwise produces ¡.
+  document.addEventListener('keydown', e => {
+    if (!e.altKey) return;
+    let num = null;
+    if (e.code === 'Digit1') num = 1;
+    else if (e.code === 'Digit2') num = 2;
+    else if (e.code === 'Digit3') num = 3;
+    if (!num) return;
+    if (document.getElementById('app').style.display === 'none') return;
+    const ids = sessionList();
+    const targetId = ids[num - 1];
+    if (!targetId) return;
+    e.preventDefault();
+    switchToSession(targetId);
   });
 
   function editMessage(msgIdx, bubble) {
@@ -1931,45 +2351,67 @@
     input.addEventListener('pointerdown', e => e.stopPropagation());
   }
 
-  function requestDeleteMessage(wrap, delBtn) {
-    const isSame = pendingDelete && pendingDelete.delBtn === delBtn;
+  // Two-phase delete: first click marks the button red, then either:
+  //   - clicking the SAME button again confirms (most reliable path)
+  //   - pressing Enter confirms (when keyboard is available)
+  //   - clicking anywhere else, or pressing Escape, cancels
+  // Second-click-to-confirm doesn't rely on focus, which is unreliable on
+  // span-based close buttons (tab × elements).
+  function startPendingDelete({ button, wrap, confirmTitle, onConfirm }) {
+    // Second click on the same button = confirm
+    if (pendingDelete && pendingDelete.delBtn === button) {
+      pendingDelete.confirm();
+      return;
+    }
     if (pendingDelete) pendingDelete.cancel();
-    if (isSame) return;
 
-    wrap.classList.add('pending-delete');
-    delBtn.style.color = '#b84a38';
-    delBtn.title = 'Press Enter to delete, Escape to cancel';
-
-    function confirm() {
-      cleanup();
-      deleteMessage(parseInt(wrap.dataset.msgIdx, 10));
+    const originalTitle = button.title;
+    if (wrap) wrap.classList.add('pending-delete');
+    button.style.color = '#b84a38';
+    button.title = confirmTitle;
+    // Best-effort focus shift so keyboard Enter works too (not relied on)
+    const focused = document.activeElement;
+    if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA') && focused.blur) {
+      focused.blur();
     }
+    try { button.focus({ preventScroll: true }); } catch (_) { button.focus(); }
 
-    function cancel() {
-      cleanup();
-    }
-
+    function confirm() { cleanup(); onConfirm(); }
+    function cancel() { cleanup(); }
     function cleanup() {
       pendingDelete = null;
-      wrap.classList.remove('pending-delete');
-      delBtn.style.color = '';
-      delBtn.title = 'Delete';
+      if (wrap) wrap.classList.remove('pending-delete');
+      button.style.color = '';
+      button.title = originalTitle;
       document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('pointerdown', onOutside, true);
     }
-
     function onKey(e) {
-      if (e.key === 'Enter') { e.preventDefault(); confirm(); }
-      if (e.key === 'Escape') { cancel(); }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        confirm();
+      }
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        cancel();
+      }
     }
-
     function onOutside(e) {
-      if (e.target !== delBtn) cancel();
+      if (e.target !== button) cancel();
     }
-
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('pointerdown', onOutside, true);
-    pendingDelete = { cancel, delBtn };
+    pendingDelete = { confirm, cancel, delBtn: button };
+  }
+
+  function requestDeleteMessage(wrap, delBtn) {
+    startPendingDelete({
+      button: delBtn,
+      wrap,
+      confirmTitle: 'Click again or press Enter to delete',
+      onConfirm: () => deleteMessage(parseInt(wrap.dataset.msgIdx, 10)),
+    });
   }
 
   function deleteMessage(msgIdx) {
@@ -1992,6 +2434,7 @@
   function startDrag(e) {
     if (e.button !== 0) return;
     if (e.target.closest('.msg-actions')) return;
+    if (pendingDelete) pendingDelete.cancel();
     e.preventDefault();
     const wrap = e.currentTarget;
     const msgIdx = parseInt(wrap.dataset.msgIdx, 10);
@@ -2037,8 +2480,7 @@
   function onDragMove(e) {
     if (!dragging) return;
     const dx = e.clientX - dragging.startX;
-    const dy = e.clientY - dragging.startY;
-    dragging.ghost.style.transform = `translate(${dx}px, ${dy}px)`;
+    dragging.ghost.style.transform = `translate(${dx}px, ${e.clientY - dragging.startY}px)`;
 
     if (Math.abs(dx) >= DRAG_THRESHOLD && names.length >= 2) {
       const targetIdx = dx < 0 ? 0 : 1;
@@ -2091,53 +2533,459 @@
     wrap.className = `msg-wrap ${position(personIdx)}`;
   }
 
-  // ── Session persistence ──
+  // ── Session persistence + multi-session state ──
 
-  function saveSession() {
-    try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({
-        names,
-        messages: messages.map(m => m.type === 'sketch'
-          ? { person: m.person, type: 'sketch', dataUrl: m.dataUrl, canvasW: m.canvasW, canvasH: m.canvasH, comment: m.comment || '' }
-          : { person: m.person, type: 'text', text: m.text, comment: m.comment || '' }
-        )
-      }));
-    } catch (_) {}
+  function genId() {
+    return Math.random().toString(36).slice(2, 10);
   }
 
-  function clearSession() {
-    localStorage.removeItem(SESSION_KEY);
+  function current() {
+    return state.activeId ? state.sessions[state.activeId] : null;
+  }
+
+  function sessionList() {
+    return Object.keys(state.sessions);
+  }
+
+  function tabLabel(session) {
+    return (session.names || []).join(' · ') || 'New dialogue';
+  }
+
+  function currentNote() {
+    const s = current();
+    if (!s) return null;
+    return s.notes?.find(n => n.id === s.activeNoteId) || s.notes?.[0] || null;
+  }
+
+  function noteLabel(note) {
+    if (!note) return 'untitled';
+    const firstLine = (note.content || '').split('\n').map(l => l.trim()).find(Boolean);
+    return firstLine || 'untitled';
+  }
+
+  function saveSession() {
+    if (current()) current().updatedAt = Date.now();
+    try {
+      localStorage.setItem(STATE_KEY, JSON.stringify(state));
+    } catch (e) {
+      // Surface errors so quota-exceeded etc. don't fail invisibly
+      console.error('[inner-dialogues] saveSession failed:', e);
+    }
+  }
+
+  function migrateLegacy() {
+    const legacy = localStorage.getItem(LEGACY_SESSION_KEY);
+    if (!legacy) return false;
+    // If we already have new-format state, migration already happened.
+    // Just clean up any leftover legacy keys and bail.
+    if (localStorage.getItem(STATE_KEY)) {
+      localStorage.removeItem(LEGACY_SESSION_KEY);
+      localStorage.removeItem(LEGACY_NOTES_KEY);
+      return false;
+    }
+    try {
+      const parsed = JSON.parse(legacy);
+      if (!parsed?.names?.length) return false;
+      const legacyNotes = localStorage.getItem(LEGACY_NOTES_KEY) || '';
+      const id = genId();
+      const noteId = genId();
+      const now = Date.now();
+      state.sessions[id] = {
+        id,
+        names: parsed.names,
+        messages: parsed.messages || [],
+        notes: [{ id: noteId, content: legacyNotes, createdAt: now, updatedAt: now }],
+        activeNoteId: noteId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      state.activeId = id;
+      // Write new state BEFORE removing old keys, so a crash can't lose data
+      localStorage.setItem(STATE_KEY, JSON.stringify(state));
+      localStorage.removeItem(LEGACY_SESSION_KEY);
+      localStorage.removeItem(LEGACY_NOTES_KEY);
+      return true;
+    } catch (_) { return false; }
+  }
+
+  function loadStoredState() {
+    try {
+      const raw = localStorage.getItem(STATE_KEY);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      // Validate shape — must be { sessions: {<id>: <object>, ...}, activeId: string|null }
+      if (!parsed || typeof parsed !== 'object') return false;
+      if (!parsed.sessions || typeof parsed.sessions !== 'object' || Array.isArray(parsed.sessions)) return false;
+      const ids = Object.keys(parsed.sessions);
+      if (!ids.length) return false;
+      // Each session must at least be a non-null object
+      if (ids.some(id => !parsed.sessions[id] || typeof parsed.sessions[id] !== 'object')) return false;
+      state = parsed;
+      // Normalize each session's notes shape. Older sessions had `notes` as a
+      // single string; the new shape is an array of note objects with an
+      // `activeNoteId` pointer. Always ensure at least one note exists.
+      for (const sid in state.sessions) {
+        const s = state.sessions[sid];
+        if (typeof s.notes === 'string') {
+          const noteId = genId();
+          const now = s.updatedAt || Date.now();
+          s.notes = [{ id: noteId, content: s.notes, createdAt: now, updatedAt: now }];
+          s.activeNoteId = noteId;
+        } else if (!Array.isArray(s.notes)) {
+          s.notes = [];
+          s.activeNoteId = null;
+        }
+        if (s.notes.length === 0) {
+          const noteId = genId();
+          const now = Date.now();
+          s.notes = [{ id: noteId, content: '', createdAt: now, updatedAt: now }];
+          s.activeNoteId = noteId;
+        }
+        if (!s.activeNoteId || !s.notes.find(n => n.id === s.activeNoteId)) {
+          s.activeNoteId = s.notes[0].id;
+        }
+      }
+      if (!state.sessions[state.activeId]) {
+        const validIds = sessionList();
+        state.activeId = validIds[validIds.length - 1] || null;
+      }
+      return true;
+    } catch (_) { return false; }
+  }
+
+  function createSession(initialNames) {
+    if (sessionList().length >= MAX_SESSIONS) return null;
+    const id = genId();
+    const noteId = genId();
+    const now = Date.now();
+    state.sessions[id] = {
+      id,
+      names: initialNames.slice(),
+      messages: [],
+      notes: [{ id: noteId, content: '', createdAt: now, updatedAt: now }],
+      activeNoteId: noteId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.activeId = id;
+    names = state.sessions[id].names;
+    messages = state.sessions[id].messages;
+    active = 0;
+    saveSession();
+    return id;
+  }
+
+  function reorderSessions(draggedId, targetId) {
+    const ids = sessionList();
+    const fromIdx = ids.indexOf(draggedId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+    ids.splice(fromIdx, 1);
+    ids.splice(toIdx, 0, draggedId);
+    // Rebuild sessions object in the new key order (JS preserves insertion order)
+    const reordered = {};
+    for (const id of ids) reordered[id] = state.sessions[id];
+    state.sessions = reordered;
+    saveSession();
+    renderTabs();
+  }
+
+  function switchToSession(id) {
+    if (id === state.activeId || !state.sessions[id]) return;
+    if (pendingDelete) pendingDelete.cancel();
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    state.activeId = id;
+    saveSession();
+    hydrateActiveSession();
+  }
+
+  function deleteSession(id) {
+    if (!state.sessions[id]) return;
+    const wasActive = state.activeId === id;
+    delete state.sessions[id];
+    const ids = sessionList();
+    if (ids.length === 0) {
+      state.activeId = null;
+      // Reset in-memory state that pointed to the deleted session
+      names = [];
+      messages = [];
+      active = 0;
+      saveSession();
+      // Drop back to setup
+      hideApp();
+      document.getElementById('messages').innerHTML = '<div class="empty" id="empty-msg">The conversation begins here.</div>';
+      document.getElementById('header-people').innerHTML = '';
+      const promptEl = document.getElementById('prompt-text');
+      promptEl.textContent = 'press prompt for a question';
+      promptEl.className = 'placeholder';
+      document.getElementById('prompt-bar').classList.remove('has-prompt');
+      lastPromptIdx = -1;
+      document.querySelector('.setup-wrap').style.display = '';
+      document.getElementById('setup-back').style.display = 'none';
+      notesArea.value = '';
+      resetSetupForm();
+      renderTabs();
+      renderNoteTabs();
+    } else if (wasActive) {
+      state.activeId = ids[ids.length - 1];
+      saveSession();
+      hydrateActiveSession();
+    } else {
+      saveSession();
+      renderTabs();
+    }
+  }
+
+  function hydrateActiveSession() {
+    const session = current();
+    if (!session) return;
+    // Reset transient UI that shouldn't carry across sessions
+    toggleSketchMode(false);
+    clearSketch();
+    names = session.names;
+    messages = session.messages;
+    active = 0;
+
+    const msgsEl = document.getElementById('messages');
+    msgsEl.innerHTML = '<div class="empty" id="empty-msg">The conversation begins here.</div>';
+    buildHeader();
+    buildSpeakerRow();
+    setActive(0);
+
+    if (messages.length) {
+      const empty = document.getElementById('empty-msg');
+      if (empty) empty.remove();
+      const snapshot = messages.slice();
+      messages.length = 0;
+      for (const m of snapshot) {
+        if (m.type === 'sketch') appendSketch(m.person, m.dataUrl, m.canvasW, m.canvasH, false, m.comment || '', false);
+        else                     appendMessage(m.person, m.text, false, m.comment || '', false);
+      }
+    }
+
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+    const note = currentNote();
+    notesArea.value = note?.content || '';
+    renderNoteTabs();
+  }
+
+  // Reset the setup form to a clean 2-field state and focus the first input.
+  // Shared by goToSetup (from "+") and deleteSession's empty branch.
+  function resetSetupForm() {
+    setupCount = 2;
+    document.querySelectorAll('#name-fields input').forEach(el => el.value = '');
+    renderNameFields();
+    const firstInput = document.querySelector('#name-fields input');
+    if (firstInput) firstInput.focus();
+  }
+
+  function goToSetup({ allowBack = false } = {}) {
+    if (pendingDelete) pendingDelete.cancel();
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    toggleSketchMode(false);
+    hideApp();
+    document.querySelector('.setup-wrap').style.display = '';
+    resetSetupForm();
+    document.getElementById('setup-back').style.display = allowBack ? '' : 'none';
+  }
+
+  function renderTabs() {
+    const strip = document.getElementById('tab-strip');
+    if (!strip) return;
+    strip.innerHTML = '';
+    const ids = sessionList();
+    if (ids.length === 0) {
+      strip.style.display = 'none';
+      return;
+    }
+    strip.style.display = '';
+    ids.forEach(id => {
+      const session = state.sessions[id];
+      const tab = document.createElement('button');
+      tab.className = 'tab' + (id === state.activeId ? ' active' : '');
+      tab.dataset.sessionId = id;
+      tab.title = tabLabel(session);
+      tab.draggable = true;
+
+      const label = document.createElement('span');
+      label.className = 'tab-label';
+      label.textContent = tabLabel(session);
+
+      const close = document.createElement('span');
+      close.className = 'tab-close';
+      close.textContent = '×';
+      close.title = 'Close this dialogue';
+      // tabindex makes the span programmatically focusable so startPendingDelete's
+      // focus() actually works — otherwise Enter is captured by whatever input
+      // was previously focused.
+      close.tabIndex = -1;
+      close.addEventListener('pointerdown', e => e.stopPropagation());
+      close.addEventListener('click', e => {
+        e.stopPropagation();
+        requestDeleteSession(id, close);
+      });
+
+      // Drag to reorder
+      tab.addEventListener('dragstart', e => {
+        // Don't initiate drag if grabbing the × button
+        if (e.target.closest('.tab-close')) { e.preventDefault(); return; }
+        e.dataTransfer.setData('text/session-id', id);
+        e.dataTransfer.effectAllowed = 'move';
+        tab.classList.add('dragging');
+      });
+      tab.addEventListener('dragend', () => tab.classList.remove('dragging'));
+      tab.addEventListener('dragover', e => {
+        if (!e.dataTransfer.types.includes('text/session-id')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        tab.classList.add('drag-over');
+      });
+      tab.addEventListener('dragleave', () => tab.classList.remove('drag-over'));
+      tab.addEventListener('drop', e => {
+        e.preventDefault();
+        tab.classList.remove('drag-over');
+        const draggedId = e.dataTransfer.getData('text/session-id');
+        if (draggedId && draggedId !== id) reorderSessions(draggedId, id);
+      });
+
+      tab.appendChild(label);
+      tab.appendChild(close);
+      tab.addEventListener('click', () => switchToSession(id));
+      strip.appendChild(tab);
+    });
+
+    if (ids.length < MAX_SESSIONS) {
+      const addBtn = document.createElement('button');
+      addBtn.className = 'tab-add';
+      addBtn.textContent = '+';
+      addBtn.title = 'New dialogue';
+      addBtn.addEventListener('click', () => goToSetup({ allowBack: true }));
+      strip.appendChild(addBtn);
+    }
+  }
+
+  function requestDeleteSession(id, closeBtn) {
+    startPendingDelete({
+      button: closeBtn,
+      wrap: closeBtn.parentElement,
+      confirmTitle: 'Click again or press Enter to close this dialogue',
+      onConfirm: () => deleteSession(id),
+    });
+  }
+
+  function renderNoteTabs() {
+    const strip = document.getElementById('note-tab-strip');
+    if (!strip) return;
+    strip.innerHTML = '';
+    const session = current();
+    if (!session || !session.notes?.length) {
+      strip.style.display = 'none';
+      return;
+    }
+    strip.style.display = '';
+    session.notes.forEach(note => {
+      const tab = document.createElement('button');
+      tab.className = 'note-tab' + (note.id === session.activeNoteId ? ' active' : '');
+      tab.dataset.noteId = note.id;
+      tab.title = noteLabel(note);
+
+      const label = document.createElement('span');
+      label.className = 'note-tab-label';
+      label.textContent = noteLabel(note);
+      tab.appendChild(label);
+
+      if (session.notes.length > 1) {
+        const close = document.createElement('span');
+        close.className = 'note-tab-close';
+        close.textContent = '×';
+        close.title = 'Delete this note';
+        close.tabIndex = -1;
+        close.addEventListener('pointerdown', e => e.stopPropagation());
+        close.addEventListener('click', e => {
+          e.stopPropagation();
+          requestDeleteNote(note.id, close);
+        });
+        tab.appendChild(close);
+      }
+
+      tab.addEventListener('click', () => switchToNote(note.id));
+      strip.appendChild(tab);
+    });
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'note-tab-add';
+    addBtn.textContent = '+ new note';
+    addBtn.title = 'Save and start a new note';
+    addBtn.addEventListener('click', createNote);
+    strip.appendChild(addBtn);
+  }
+
+  function createNote() {
+    const session = current();
+    if (!session) return;
+    if (pendingDelete) pendingDelete.cancel();
+    const noteId = genId();
+    const now = Date.now();
+    session.notes.push({ id: noteId, content: '', createdAt: now, updatedAt: now });
+    session.activeNoteId = noteId;
+    saveSession();
+    notesArea.value = '';
+    notesArea.focus();
+    renderNoteTabs();
+  }
+
+  function switchToNote(id) {
+    const session = current();
+    if (!session || session.activeNoteId === id) return;
+    const note = session.notes.find(n => n.id === id);
+    if (!note) return;
+    if (pendingDelete) pendingDelete.cancel();
+    session.activeNoteId = id;
+    saveSession();
+    notesArea.value = note.content;
+    renderNoteTabs();
+  }
+
+  function deleteNote(id) {
+    const session = current();
+    if (!session || session.notes.length <= 1) return;
+    const idx = session.notes.findIndex(n => n.id === id);
+    if (idx < 0) return;
+    session.notes.splice(idx, 1);
+    if (session.activeNoteId === id) {
+      session.activeNoteId = session.notes[Math.max(0, idx - 1)].id;
+    }
+    const note = session.notes.find(n => n.id === session.activeNoteId);
+    notesArea.value = note?.content || '';
+    saveSession();
+    renderNoteTabs();
+  }
+
+  function requestDeleteNote(id, closeBtn) {
+    startPendingDelete({
+      button: closeBtn,
+      wrap: closeBtn.parentElement,
+      confirmTitle: 'Click again or press Enter to delete this note',
+      onConfirm: () => deleteNote(id),
+    });
   }
 
   function restoreSession() {
+    // Init: migrate legacy data, load state, hydrate active session if any.
+    // Wrapped in try/catch so a failure here never halts the script and breaks
+    // listener attachment for the rest of the page.
     try {
-      const raw = localStorage.getItem(SESSION_KEY);
-      if (!raw) return false;
-      const { names: savedNames, messages: savedMsgs } = JSON.parse(raw);
-      if (!savedNames?.length || !savedMsgs?.length) return false;
-
-      names      = savedNames;
-      messages   = [];
-      setupCount = names.length;
-
-      document.querySelector('.setup-wrap').style.display = 'none';
-      document.getElementById('app').style.display = 'flex';
-      document.getElementById('notes-panel').classList.add('visible');
-      buildHeader();
-      buildSpeakerRow();
-      setActive(0);
-
-      const empty = document.getElementById('empty-msg');
-      if (empty) empty.remove();
-
-      for (const m of savedMsgs) {
-        if (m.type === 'sketch') appendSketch(m.person, m.dataUrl, m.canvasW, m.canvasH, false, m.comment || '');
-        else                     appendMessage(m.person, m.text, false, m.comment || '');
+      migrateLegacy();
+      loadStoredState();
+      if (current()) {
+        showApp();
+        hydrateActiveSession();
+        return true;
       }
-
-      document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-      return true;
-    } catch (_) { return false; }
+    } catch (e) {
+      console.error('restoreSession failed:', e);
+    }
+    return false;
   }
 
   // ── Distil ──
@@ -2166,16 +3014,6 @@
   const distilBtn = document.getElementById('distil-btn');
   const distilToast = document.getElementById('distil-toast');
 
-  distilBtn.addEventListener('mouseenter', () => {
-    distilToast.textContent = 'copies your conversation & a prompt, simply paste into Claude';
-    distilToast.style.opacity = '1';
-    distilToast.style.transform = 'translateX(-50%) translateY(0)';
-  });
-  distilBtn.addEventListener('mouseleave', () => {
-    distilToast.style.opacity = '0';
-    distilToast.style.transform = 'translateX(-50%) translateY(12px)';
-  });
-
   function addBtnTooltip(id, label) {
     const btn = document.getElementById(id);
     btn.addEventListener('mouseenter', () => {
@@ -2189,9 +3027,29 @@
     });
   }
 
-  addBtnTooltip('image-btn', 'export as an image');
-  addBtnTooltip('save-btn',  'export as a text file');
-  addBtnTooltip('reset-btn', 'clear the conversation and start over');
+  addBtnTooltip('distil-btn', 'copies your conversation & a prompt, simply paste into Claude');
+  addBtnTooltip('image-btn',  'export as an image');
+  addBtnTooltip('save-btn',   'export as a text file');
+  addBtnTooltip('reset-btn',  'clear the conversation and start over');
+  // ── Focus mode ──
+  const FOCUS_MODE_KEY = 'inner_dialogues_focus_mode';
+  const focusBtn = document.getElementById('focus-btn');
+  // OFF: 4 small panels (multi-panel view — click to focus to one).
+  // ON: single contained square with inner dot (focused — click to exit back to multi-panel).
+  const FOCUS_ICON_IN  = `<svg viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>`;
+  const FOCUS_ICON_OUT = `<svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1.5"/><rect x="7" y="7" width="2" height="2" fill="currentColor" stroke="none"/></svg>`;
+  function setFocusMode(on) {
+    document.getElementById('app').classList.toggle('focus-mode', on);
+    focusBtn.innerHTML = on ? FOCUS_ICON_IN : FOCUS_ICON_OUT;
+    focusBtn.title = on ? 'exit focus mode' : 'focus mode — hide tabs, controls, and notes';
+    focusBtn.classList.toggle('active', on);
+    try { localStorage.setItem(FOCUS_MODE_KEY, on ? '1' : '0'); } catch (_) {}
+  }
+  focusBtn.addEventListener('click', () => {
+    setFocusMode(!document.getElementById('app').classList.contains('focus-mode'));
+  });
+  // Default to focus mode unless the user has explicitly turned it off before
+  if (localStorage.getItem(FOCUS_MODE_KEY) !== '0') setFocusMode(true);
 
   distilBtn.addEventListener('click', () => {
     if (messages.length === 0) return;

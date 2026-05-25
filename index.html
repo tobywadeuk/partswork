@@ -189,31 +189,28 @@
     background: var(--paper);
     border: 1px solid var(--rule);
     border-radius: 12px;
-    padding: 20px 22px;
+    padding: 18px 22px;
     flex-direction: column;
-    gap: 14px;
+    gap: 10px;
   }
 
-  .guide-section {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-
-  .guide-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 9px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--ink-faint);
-  }
-
-  .guide-section p {
+  .guide p {
     margin: 0;
     font-family: 'DM Mono', monospace;
     font-size: 12px;
-    line-height: 1.6;
+    line-height: 1.55;
     color: var(--ink-muted);
+  }
+
+  .guide-divider {
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--rule);
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
   }
 
   .start-btn {
@@ -1241,54 +1238,14 @@
   </div>
   <div class="guide-toggle" id="guide-toggle" onclick="toggleGuide()">how it works</div>
   <div class="guide" id="guide" style="display:none">
-    <div class="guide-section">
-      <span class="guide-label">dialogue</span>
-      <p>Name the voices — parts of you, or real people. Type as each speaker, press Enter or tap send. Switch speakers with the chips below, or ⌘1, ⌘2…</p>
-    </div>
-    <div class="guide-section">
-      <span class="guide-label">rename &amp; add speakers</span>
-      <p>Double-click a speaker chip to rename it. Tap + on the chip row to add another (up to 4).</p>
-    </div>
-    <div class="guide-section">
-      <span class="guide-label">sketch</span>
-      <p>Tap the pencil icon to draw instead of write — for diagrams, images, or anything words can't hold.</p>
-    </div>
-    <div class="guide-section">
-      <span class="guide-label">message actions</span>
-      <p>Hover any message: copy, add a note, edit, or delete. Delete asks you to press Enter to confirm.</p>
-    </div>
-    <div class="guide-section">
-      <span class="guide-label">reassign</span>
-      <p>Drag a message left or right to move it to a different speaker.</p>
-    </div>
-    <div class="guide-section">
-      <span class="guide-label">prompts</span>
-      <p>Press the prompt button for a random reflection question to deepen the dialogue.</p>
-    </div>
-    <div class="guide-section">
-      <span class="guide-label">dialogues (tabs)</span>
-      <p>Up to 3 conversations open at once. Click + to start another, drag tabs to reorder, ⌥1–⌥3 to switch between them, × to close. Desktop only.</p>
-    </div>
-    <div class="guide-section">
-      <span class="guide-label">notes</span>
-      <p>A side panel for observations and patterns. + saves the current note and starts a new one; switch between them as tabs.</p>
-    </div>
-    <div class="guide-section">
-      <span class="guide-label">recap</span>
-      <p>Copies your conversation plus a summarising prompt to the clipboard, then opens Claude — paste it in for a distilled summary.</p>
-    </div>
-    <div class="guide-section">
-      <span class="guide-label">export</span>
-      <p>Save as a styled image to share, or a plain text file to keep. Both include comments and notes.</p>
-    </div>
-    <div class="guide-section">
-      <span class="guide-label">load</span>
-      <p>Drag a .txt export onto the setup card (or use "load conversation") to bring a past dialogue back in.</p>
-    </div>
-    <div class="guide-section">
-      <span class="guide-label">auto-save</span>
-      <p>Everything persists automatically — refresh or close the tab, it'll be here when you return.</p>
-    </div>
+    <p>a quiet space for writing the conversation between parts of yourself</p>
+    <p>name each voice, then speak as them in turn</p>
+    <p>private — everything stays on this device</p>
+    <div class="guide-divider">hidden tips</div>
+    <p>cmd 1, cmd 2, cmd 3 — switch parts</p>
+    <p>opt 1, opt 2, opt 3 — switch conversations</p>
+    <p>drag a message sideways to reassign</p>
+    <p>save as txt → load conversation to resume it later</p>
   </div>
   <p class="setup-privacy">your words stay on your device</p>
   <p class="setup-copyright">© Social Sage</p>

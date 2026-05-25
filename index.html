@@ -271,15 +271,17 @@
     position: relative;
   }
 
-  /* ── Tab Strip ── */
+  /* ── Tab Strip (now inside .app-top, no own padding/border) ── */
   #tab-strip {
     display: flex;
     align-items: center;
     gap: 5px;
-    padding: 10px 14px 9px;
-    border-bottom: 1px solid var(--rule);
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
   }
   #tab-strip:empty { display: none; }
+  #tab-strip::-webkit-scrollbar { display: none; }
 
   .tab {
     display: inline-flex;
@@ -363,12 +365,15 @@
   }
   .setup-back-btn:hover { color: var(--ink-muted); }
 
-  .app-header {
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--rule);
+  /* Combined top bar — session tabs (left) + app controls (right) on one row.
+     Right padding reserves space for the absolutely-positioned focus button. */
+  .app-top {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 36px 10px 14px;
+    border-bottom: 1px solid var(--rule);
+    min-height: 44px;
   }
 
   .header-people {
@@ -410,7 +415,8 @@
   .header-controls {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    flex-shrink: 0;
   }
 
   .header-btn {
@@ -428,11 +434,11 @@
   .header-btn:hover { color: var(--ink-muted); }
   .header-btn.active { color: var(--ink); }
 
-  /* ── Focus button (floating icon, top-right of #app) ── */
+  /* ── Focus button (absolute icon, top-right of #app) ── */
   #focus-btn {
     position: absolute;
     top: 11px;
-    right: 14px;
+    right: 11px;
     z-index: 10;
     background: none;
     border: none;
@@ -459,9 +465,10 @@
     fill: none;
   }
 
-  /* ── Focus mode: hide tabs, header controls, notes panel ── */
-  #app.focus-mode #tab-strip { display: none; }
-  #app.focus-mode .header-controls { display: none; }
+  /* ── Focus mode: hide top bar + notes panel entirely. Prompt bar reserves right
+     padding so the focus button doesn't overlap the Prompt button. ── */
+  #app.focus-mode .app-top { display: none; }
+  #app.focus-mode #prompt-bar { padding-right: 40px; }
   #app.focus-mode ~ #notes-panel { display: none !important; }
 
   /* Prompt bar */
@@ -687,7 +694,8 @@
     font-size: 11px;
   }
 
-  /* ── Note tabs (inside notes panel) — vertical, rectangular list ── */
+  /* Multi-note UI removed — single notes textarea per dialogue */
+  #note-tab-strip { display: none !important; }
   #note-tab-strip {
     display: flex;
     flex-direction: column;
@@ -699,7 +707,6 @@
     max-height: 35vh;
     overflow-y: auto;
   }
-  #note-tab-strip:empty { display: none; }
   #note-tab-strip::-webkit-scrollbar { width: 4px; }
   #note-tab-strip::-webkit-scrollbar-track { background: transparent; }
   #note-tab-strip::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
@@ -1198,9 +1205,8 @@
 
 <!-- Chat App -->
 <div id="app">
-  <div id="tab-strip"></div>
-  <div class="app-header">
-    <div class="header-people" id="header-people"></div>
+  <div class="app-top">
+    <div id="tab-strip"></div>
     <div class="header-controls">
       <button class="header-btn" id="distil-btn">recap</button>
       <button class="header-btn" id="image-btn">image</button>
@@ -2002,11 +2008,9 @@
   }
 
   function buildHeader() {
-    document.getElementById('header-people').innerHTML = names.map((n, i) => `
-      <div class="header-person">
-        <div class="header-dot" style="background:${palette(i).dot};"></div>
-        <span class="header-name">${escHtml(n)}</span>
-      </div>`).join('');
+    // Header-people removed — speaker names already appear above each message
+    // and on the chips at the bottom. Kept as a no-op so call sites don't need
+    // to be touched everywhere.
   }
 
   function refreshPositions() {
@@ -2557,10 +2561,20 @@
     return s.notes?.find(n => n.id === s.activeNoteId) || s.notes?.[0] || null;
   }
 
+  const NOTE_NUM_WORDS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+  function noteFallbackName(idx) {
+    return idx < NOTE_NUM_WORDS.length ? `note ${NOTE_NUM_WORDS[idx]}` : `note ${idx + 1}`;
+  }
   function noteLabel(note) {
-    if (!note) return 'untitled';
+    if (!note) return 'note';
     const firstLine = (note.content || '').split('\n').map(l => l.trim()).find(Boolean);
-    return firstLine || 'untitled';
+    if (firstLine) return firstLine;
+    const s = current();
+    if (s && s.notes) {
+      const idx = s.notes.findIndex(n => n.id === note.id);
+      if (idx >= 0) return noteFallbackName(idx);
+    }
+    return 'note';
   }
 
   function saveSession() {
@@ -2714,7 +2728,6 @@
       // Drop back to setup
       hideApp();
       document.getElementById('messages').innerHTML = '<div class="empty" id="empty-msg">The conversation begins here.</div>';
-      document.getElementById('header-people').innerHTML = '';
       const promptEl = document.getElementById('prompt-text');
       promptEl.textContent = 'press prompt for a question';
       promptEl.className = 'placeholder';

@@ -11,28 +11,87 @@
 
   :root {
     --bg: #f5f0e8;
+    --bg-2: #ece2d3;           /* gradient end — warm depth on the canvas */
     --paper: #fdfaf4;
-    --ink: #1a1410;
+    --ink: #241c14;            /* warm espresso — softer than near-black on cream */
     --ink-muted: #6b5e4e;
     --ink-faint: #b8a898;
     --rule: #e0d8cc;
     --radius: 14px;
     --radius-sm: 8px;
+    /* How strongly a part's colour tints its message bubble over the paper.
+       Derived from the dot colour via color-mix so it adapts to the theme. */
+    --bubble-mix: 24%;
+    /* Whisper-thin tinted edge so bubbles have just-barely definition. */
+    --bubble-border: color-mix(in srgb, var(--pc, var(--ink-muted)) 6%, transparent);
+    /* Soft warm elevation so cards float on the canvas. */
+    --card-shadow: 0 14px 46px rgba(74, 54, 34, 0.11), 0 2px 8px rgba(74, 54, 34, 0.05);
+    /* Ambient drift bloom colour + strength (warm gold, felt-not-seen). */
+    --bloom: #e3b178;
+    --bloom-strength: 16%;
+    /* Faint paper grain on the cards. */
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+    color-scheme: light;
+  }
+
+  /* Warm dark theme — deep charcoal + cream, never cold black. The core tokens
+     flip; everything else is expressed through them so the whole UI re-themes
+     for free. Grain + bubble edge off here; bloom stays a subtle tan. */
+  body.theme-dark {
+    --bg: #17130f;
+    --bg-2: #17130f;           /* flat in dark (keeps it as you liked it) */
+    --paper: #211c17;
+    --ink: #efe7da;
+    --ink-muted: #b6a690;
+    --ink-faint: #756758;
+    --rule: #38302a;
+    --bubble-mix: 30%;
+    --bubble-border: transparent;
+    --card-shadow: 0 18px 52px rgba(0, 0, 0, 0.46), 0 2px 10px rgba(0, 0, 0, 0.34);
+    --bloom: var(--ink-muted);
+    --bloom-strength: 9%;
+    --grain: none;
+    color-scheme: dark;
   }
 
   body {
     font-family: 'Lora', Georgia, serif;
-    background: var(--bg);
+    background: linear-gradient(165deg, var(--bg), var(--bg-2));
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 20px;
+    transition: background 0.5s ease, color 0.5s ease;
   }
+
+  /* Barely-there ambient drift behind everything — two soft warm blooms that
+     slowly wander. Sits over the flat bg, behind the app card, so it breathes
+     around the edges. Pauses in focus mode and respects reduced-motion. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: -25%;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(38% 48% at 22% 28%, color-mix(in srgb, var(--bloom) var(--bloom-strength), transparent), transparent 70%),
+      radial-gradient(44% 52% at 78% 72%, color-mix(in srgb, var(--bloom) calc(var(--bloom-strength) - 3%), transparent), transparent 70%);
+    animation: ambientDrift 36s ease-in-out infinite alternate;
+  }
+  body.focus-mode-on::before { animation-play-state: paused; }
+
+  @keyframes ambientDrift {
+    from { transform: translate3d(-2%, -1%, 0) scale(1.02); }
+    to   { transform: translate3d(2%, 2.5%, 0) scale(1.09); }
+  }
+
 
   /* ── Setup Screen ── */
   #setup {
-    background: var(--paper);
+    background-color: var(--paper);
+    background-image: var(--grain);
+    box-shadow: var(--card-shadow);
     border: 1px solid var(--rule);
     border-radius: var(--radius);
     width: 100%;
@@ -257,7 +316,9 @@
   /* ── Chat App ── */
   #app {
     display: none;
-    background: var(--paper);
+    background-color: var(--paper);
+    background-image: var(--grain);
+    box-shadow: var(--card-shadow);
     border: 1px solid var(--rule);
     border-radius: var(--radius);
     width: 100%;
@@ -266,6 +327,7 @@
     flex-direction: column;
     overflow: hidden;
     position: relative;
+    transition: background-color 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
   }
 
   /* ── Tab Strip (now inside .app-top, no own padding/border) ── */
@@ -331,6 +393,7 @@
   .tab-add {
     width: 26px;
     height: 26px;
+    flex-shrink: 0;
     border-radius: 50%;
     border: 1px solid var(--rule);
     background: transparent;
@@ -389,18 +452,20 @@
     letter-spacing: 0.04em;
   }
 
+  /* Standalone input that fully replaces the speaker chip while renaming.
+     Not nested inside the button, so no native button/space activation quirks. */
   .speaker-rename-input {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
     font-family: 'DM Mono', monospace;
-    font-size: 12px;
-    color: inherit;
-    letter-spacing: 0.04em;
-    border: none;
-    border-bottom: 1px solid currentColor;
-    background: transparent;
+    font-size: 13px;
+    letter-spacing: 0.02em;
     outline: none;
-    padding: 0;
-    max-width: 100px;
-    opacity: 0.9;
+    flex-shrink: 0;
+    box-sizing: border-box;
   }
 
   .header-dot {
@@ -431,7 +496,7 @@
   .header-btn:hover { color: var(--ink-muted); }
   .header-btn.active { color: var(--ink); }
 
-  /* ── Focus button (absolute icon, top-right of #app) ── */
+  /* ── Focus button (absolute icon, top-right of the #app card) ── */
   #focus-btn {
     position: absolute;
     top: 11px;
@@ -451,7 +516,28 @@
   }
   #focus-btn:hover { opacity: 1; color: var(--ink-muted); }
   #focus-btn.active { color: var(--ink); opacity: 0.85; }
-  #focus-btn svg {
+
+  /* ── Theme toggle — fixed at the very top-right of the viewport ── */
+  #theme-btn {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 50;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    color: var(--ink-muted);
+    opacity: 0.3;
+    transition: opacity 0.25s, color 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+  }
+  #theme-btn:hover { opacity: 1; color: var(--ink); }
+
+  #focus-btn svg, #theme-btn svg {
     width: 13px;
     height: 13px;
     display: block;
@@ -461,6 +547,7 @@
     stroke-linejoin: round;
     fill: none;
   }
+  #theme-btn svg { width: 16px; height: 16px; }
 
   /* ── Parts map button (fixed in top-left of viewport, subtle) ── */
   /* Hidden by default; only shown when there are 2+ sessions and not in focus mode */
@@ -553,6 +640,29 @@
     display: block;
   }
 
+  #parts-map-export-btn {
+    position: absolute;
+    bottom: 12px;
+    right: 14px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    color: var(--ink-faint);
+    opacity: 0.25;
+    transition: opacity 0.2s, color 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+  }
+  #parts-map-export-btn:hover { opacity: 1; color: var(--ink); }
+  #parts-map-export-btn svg {
+    width: 15px; height: 15px; display: block;
+    stroke: currentColor; stroke-width: 1.5;
+    stroke-linecap: round; stroke-linejoin: round; fill: none;
+  }
+
   /* ── Focus mode: hide top bar + notes panel entirely. Prompt bar reserves
      right padding so the focus icon doesn't overlap the Prompt button. ── */
   #app.focus-mode .app-top { display: none; }
@@ -561,13 +671,13 @@
 
   /* Prompt bar */
   #prompt-bar {
-    padding: 10px 18px;
+    padding: 12px 20px;
     border-bottom: 1px solid var(--rule);
     display: flex;
     align-items: center;
     gap: 12px;
     background: var(--paper);
-    min-height: 44px;
+    min-height: 46px;
   }
 
   #prompt-text {
@@ -627,10 +737,10 @@
   .messages {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 18px;
+    padding: 24px 20px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 13px;
     scroll-behavior: smooth;
   }
 
@@ -641,22 +751,63 @@
   .empty {
     flex: 1;
     display: flex;
+    flex-direction: column;
+    gap: 18px;
     align-items: center;
     justify-content: center;
     font-family: 'Lora', serif;
     font-size: 14px;
     font-style: italic;
     color: var(--ink-faint);
+    animation: fadeUp 0.4s ease;
+  }
+
+  /* A soft, slowly breathing orb above the empty-state text — a calm "begin
+     here" focal point that nods to the meditative spirit of the tool. */
+  .empty-orb {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 34%,
+      color-mix(in srgb, var(--ink-muted) 32%, var(--paper)),
+      color-mix(in srgb, var(--ink-muted) 13%, var(--paper)));
+    animation: breathe 4.8s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% {
+      transform: scale(0.9);
+      opacity: 0.65;
+      box-shadow: 0 0 22px 1px color-mix(in srgb, var(--ink-muted) 9%, transparent);
+    }
+    50% {
+      transform: scale(1.06);
+      opacity: 1;
+      box-shadow: 0 0 38px 6px color-mix(in srgb, var(--ink-muted) 15%, transparent);
+    }
+  }
+
+  /* Respect users who prefer less motion: keep the calm, drop the movement. */
+  @media (prefers-reduced-motion: reduce) {
+    body::before,
+    .empty-orb,
+    .msg-wrap { animation: none; }
   }
 
   .msg-wrap {
     display: flex;
     flex-direction: column;
     max-width: 72%;
-    animation: fadeUp 0.2s ease;
+    animation: bubbleIn 0.42s cubic-bezier(0.22, 1, 0.36, 1);
     cursor: grab;
   }
   .msg-wrap:active { cursor: grabbing; }
+
+  /* Ease + rise + a touch of settle-in scale for new messages. */
+  @keyframes bubbleIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
 
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(6px); }
@@ -673,8 +824,8 @@
     font-family: 'DM Mono', monospace;
     font-size: 10px;
     color: var(--ink-faint);
-    letter-spacing: 0.06em;
-    margin-bottom: 4px;
+    letter-spacing: 0.07em;
+    margin-bottom: 5px;
     padding: 0 4px;
   }
 
@@ -685,12 +836,19 @@
   .msg-bubble {
     font-family: 'Lora', serif;
     font-size: 14px;
-    line-height: 1.6;
+    line-height: 1.62;
     color: var(--ink);
-    padding: 10px 14px;
-    border-radius: 12px;
+    padding: 11px 15px;
+    border-radius: 13px;
     word-break: break-word;
     position: relative;
+    /* Tint = the part's colour washed over the paper. One source of truth
+       (--pc, the dot colour) → harmonious across parts and themes. The
+       whisper-thin --bubble-border just barely defines the edge (off in dark). */
+    background: var(--paper);
+    background: color-mix(in srgb, var(--pc, var(--ink-muted)) var(--bubble-mix), var(--paper));
+    border: 1px solid var(--bubble-border);
+    transition: background 0.32s ease, border-color 0.32s ease;
   }
 
   /* bubble corner tails set via position class — background set inline */
@@ -1273,7 +1431,7 @@
   </div>
 
   <div class="messages" id="messages">
-    <div class="empty" id="empty-msg">The conversation begins here.</div>
+    <div class="empty" id="empty-msg"><span class="empty-orb"></span>The conversation begins here.</div>
   </div>
 
   <div class="bottom">
@@ -1296,6 +1454,9 @@
     </div>
   </div>
 </div>
+
+<!-- Theme toggle — fixed top-right of the viewport, always available -->
+<button id="theme-btn" type="button" title="toggle dark mode"></button>
 
 <!-- Floating parts-map opener (outside #app, very subtle) -->
 <button id="parts-map-btn" type="button" title="parts map — see all parts across dialogues">
@@ -1345,6 +1506,9 @@
     <button class="parts-map-close" type="button" title="close">×</button>
     <div class="parts-map-title">parts map</div>
     <svg id="parts-map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <button id="parts-map-export-btn" type="button" title="export all conversations as one txt file">
+      <svg viewBox="0 0 16 16"><path d="M8 2v8M8 10l-3-3M8 10l3-3M3 13h10"/></svg>
+    </button>
   </div>
 </div>
 
@@ -1392,6 +1556,35 @@
   let sketchColor = SKETCH_COLORS[0];
   let sketchCtxRef = null;
   let sketchInited = false;
+
+  // ── Stable DOM refs (elements that exist for the page lifetime) ──
+  const appEl        = document.getElementById('app');
+  const msgsEl       = document.getElementById('messages');
+  const msgInputEl   = document.getElementById('msg-input');
+  const sketchCanvas = document.getElementById('sketch-canvas');
+  const speakerRowEl = document.getElementById('speaker-row');
+
+  // ── Inline SVG icons reused across message action buttons ──
+  const ICON_COPY    = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="6" height="6" rx="1"/><path d="M2 7V2.5a1 1 0 0 1 1-1H7"/></svg>`;
+  const ICON_COMMENT = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2h8v7H6.5L4 11V9H2z"/></svg>`;
+  const ICON_EDIT    = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l2 2-5.5 5.5H3v-1.5L8 2z"/></svg>`;
+  const ICON_DELETE  = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>`;
+
+  // Creates a .msg-action-btn with consistent listener wiring (pointerdown
+  // stopPropagation so it doesn't initiate a message drag, click → onClick).
+  function makeActionBtn(svg, title, onClick) {
+    const btn = document.createElement('button');
+    btn.className = 'msg-action-btn';
+    btn.title = title;
+    btn.innerHTML = svg;
+    btn.addEventListener('pointerdown', e => e.stopPropagation());
+    btn.addEventListener('click', onClick);
+    return btn;
+  }
+
+  // Returns the message index for a wrap element. Centralized so the parse
+  // pattern doesn't get scattered through click handlers.
+  const msgIdxOf = wrap => parseInt(wrap.dataset.msgIdx, 10);
 
   // ── Setup: dynamic name fields ──
   let setupCount = 2;
@@ -1475,21 +1668,30 @@
     saveSession();
   }
 
+  // Debounced localStorage write — the in-memory note is updated synchronously
+  // (so tab labels and any reads see the latest text) but the JSON.stringify +
+  // localStorage.setItem only fires after typing pauses. Keeps long notes snappy.
+  let notesSaveTimer = null;
   notesArea.addEventListener('input', () => {
     const note = currentNote();
     if (!note) return;
     note.content = notesArea.value;
     note.updatedAt = Date.now();
-    saveSession();
     // Update only the active tab's label so we don't rebuild the strip on every keystroke
     const activeLabel = document.querySelector('.note-tab.active .note-tab-label');
     if (activeLabel) activeLabel.textContent = noteLabel(note);
+    if (notesSaveTimer) clearTimeout(notesSaveTimer);
+    notesSaveTimer = setTimeout(() => { notesSaveTimer = null; saveSession(); }, 350);
   });
 
   // Defensive saves — catch any keystrokes that didn't fire input, and any state
   // that's still in the textarea but not yet flushed to the note when the page closes.
-  notesArea.addEventListener('blur', flushNoteFromTextarea);
-  window.addEventListener('beforeunload', flushNoteFromTextarea);
+  function flushPendingNoteSave() {
+    if (notesSaveTimer) { clearTimeout(notesSaveTimer); notesSaveTimer = null; }
+    flushNoteFromTextarea();
+  }
+  notesArea.addEventListener('blur', flushPendingNoteSave);
+  window.addEventListener('beforeunload', flushPendingNoteSave);
 
   renderNameFields();
   restoreSession();
@@ -1609,10 +1811,49 @@
   });
 
   // ── Export as image ──
-  function dialogueFilename() {
-    const joined = names.length === 1 ? names[0]
-      : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+  // Builds "dialogue between A, B and C" from a names array. Defaults to the
+  // active session's `names`. Shared by image export, txt export, and the
+  // multi-session export-all.
+  function dialogueFilename(nameList = names) {
+    if (!nameList || nameList.length === 0) return 'dialogue between untitled';
+    const joined = nameList.length === 1 ? nameList[0]
+      : nameList.slice(0, -1).join(', ') + ' and ' + nameList[nameList.length - 1];
     return `dialogue between ${joined}`;
+  }
+
+  // Flatten a session's notes to text. Handles both the legacy single-string
+  // shape and the current array-of-notes shape; multiple notes are separated
+  // by a rule so they stay visually distinct in the exported file.
+  function notesAsText(notes) {
+    if (typeof notes === 'string') return notes.trim();
+    if (Array.isArray(notes)) {
+      return notes.map(n => (n && n.content) || '').filter(Boolean).join('\n\n---\n\n').trim();
+    }
+    return '';
+  }
+
+  // Serialize one session to the shared plain-text export format: title, rule,
+  // message body (with inline ✦ comments), and an optional notes section.
+  // Used by both single-session "save" and multi-session "export all".
+  function sessionToText(sNames, sMessages, notes) {
+    const title = dialogueFilename(sNames);
+    const rule  = '—'.repeat(Math.max(32, title.length + 8));
+    const body  = (sMessages || []).map(m => {
+      const speaker = sNames[m.person] || `Part ${m.person + 1}`;
+      const line = m.type === 'sketch' ? `${speaker}: [sketch]` : `${speaker}: ${m.text}`;
+      return m.comment ? `${line}\n    ✦ ${m.comment}` : line;
+    }).join('\n\n');
+    const notesText = notesAsText(notes);
+    const notesSection = notesText ? `\n\n${rule}\nNotes\n${rule}\n\n${notesText}` : '';
+    return `${title}\n${rule}\n\n${body || '(empty)'}\n\n${rule}${notesSection}`;
+  }
+
+  // Trigger a .txt download from a string.
+  function downloadTextFile(filename, text) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+    a.download = filename;
+    a.click();
   }
 
   document.getElementById('image-btn').addEventListener('click', async () => {
@@ -1662,8 +1903,14 @@
       return out;
     }
 
-    // Pre-load sketch images
-    const loadImg = src => new Promise(res => { const i = new Image(); i.onload = () => res(i); i.src = src; });
+    // Pre-load sketch images — resolve null on error so a single broken sketch
+    // doesn't hang the entire export with an unresolved promise.
+    const loadImg = src => new Promise(res => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = () => res(null);
+      i.src = src;
+    });
     const sketchImgs = {};
     await Promise.all(messages.filter(m => m.type === 'sketch').map(async m => {
       sketchImgs[m.dataUrl] = await loadImg(m.dataUrl);
@@ -1681,7 +1928,7 @@
       let item;
       if (m.type === 'sketch') {
         const img = sketchImgs[m.dataUrl];
-        const ar  = m.canvasW / m.canvasH;
+        const ar  = (m.canvasW && m.canvasH) ? (m.canvasW / m.canvasH) : 1.6;
         const bubbleW = maxBW;
         const bubbleH = Math.round((bubbleW - SP * 2) / ar) + SP * 2;
         item = { ...m, img, lines: [], bubbleW, bubbleH, pos };
@@ -1706,10 +1953,7 @@
 
     // Notes section sizing — combine all notes from the active session
     const sessionForExport = current();
-    const notesText = (sessionForExport?.notes || [])
-      .map(n => (n.content || '').trim())
-      .filter(Boolean)
-      .join('\n\n---\n\n');
+    const notesText = notesAsText(sessionForExport?.notes);
     let notesLines = [];
     let notesH = 0;
     if (notesText) {
@@ -1799,7 +2043,7 @@
 
       // Content
       if (m.type === 'sketch') {
-        ctx.drawImage(m.img, bx + SP, by + SP, m.bubbleW - SP * 2, m.bubbleH - SP * 2);
+        if (m.img) ctx.drawImage(m.img, bx + SP, by + SP, m.bubbleW - SP * 2, m.bubbleH - SP * 2);
       } else {
         ctx.font = `400 ${TEXT_SIZE}px 'Lora', Georgia, serif`;
         ctx.fillStyle = '#1a1410';
@@ -1858,22 +2102,8 @@
 
   // ── Save conversation ──
   document.getElementById('save-btn').addEventListener('click', () => {
-    const title = dialogueFilename();
-    const rule  = '—'.repeat(Math.max(32, title.length + 8));
-    const body  = messages.map(m => {
-      const line = m.type === 'sketch' ? `${names[m.person]}: [sketch]` : `${names[m.person]}: ${m.text}`;
-      return m.comment ? `${line}\n    ✦ ${m.comment}` : line;
-    }).join('\n\n');
     const session = current();
-    const allNotes = (session?.notes || [])
-      .map(n => (n.content || '').trim())
-      .filter(Boolean)
-      .join('\n\n---\n\n');
-    const notesSection = allNotes ? `\n\n${rule}\nNotes\n${rule}\n\n${allNotes}` : '';
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([`${title}\n${rule}\n\n${body}\n\n${rule}${notesSection}`], { type: 'text/plain' }));
-    a.download = `${title}.txt`;
-    a.click();
+    downloadTextFile(`${dialogueFilename()}.txt`, sessionToText(names, messages, session?.notes));
   });
 
   // ── Sketch ──
@@ -1881,7 +2111,7 @@
     if (sketchInited) return;
     sketchInited = true;
 
-    const canvas = document.getElementById('sketch-canvas');
+    const canvas = sketchCanvas;
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.offsetWidth || 480;
     const h = 168;
@@ -1938,23 +2168,20 @@
   }
 
   function clearSketch() {
-    const canvas = document.getElementById('sketch-canvas');
-    const ctx = sketchCtxRef;
-    if (!ctx) return;
-    ctx.fillStyle = '#fdfaf4';
-    ctx.fillRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+    if (!sketchCtxRef) return;
+    sketchCtxRef.fillStyle = '#fdfaf4';
+    sketchCtxRef.fillRect(0, 0, sketchCanvas.offsetWidth, sketchCanvas.offsetHeight);
   }
 
   function toggleSketchMode(on) {
     sketchMode = on;
     const panel  = document.getElementById('sketch-panel');
-    const input  = document.getElementById('msg-input');
     const toggle = document.getElementById('sketch-toggle-btn');
-    panel.style.display  = on ? 'flex' : 'none';
-    input.style.display  = on ? 'none' : '';
+    panel.style.display       = on ? 'flex' : 'none';
+    msgInputEl.style.display  = on ? 'none' : '';
     toggle.classList.toggle('active', on);
-    if (on) { initSketch(); document.getElementById('sketch-canvas').focus(); }
-    else    { input.focus(); }
+    if (on) { initSketch(); sketchCanvas.focus(); }
+    else    { msgInputEl.focus(); }
   }
 
   document.getElementById('sketch-toggle-btn').addEventListener('click', () => toggleSketchMode(!sketchMode));
@@ -1964,13 +2191,11 @@
   });
 
   function sendSketch() {
-    const canvas = document.getElementById('sketch-canvas');
-    const dataUrl = canvas.toDataURL('image/png');
+    const dataUrl = sketchCanvas.toDataURL('image/png');
     const empty = document.getElementById('empty-msg');
     if (empty) empty.remove();
-    appendSketch(active, dataUrl, canvas.width, canvas.height);
-    const msgs = document.getElementById('messages');
-    msgs.scrollTop = msgs.scrollHeight;
+    appendSketch(active, dataUrl, sketchCanvas.width, sketchCanvas.height);
+    scrollMessagesToBottomWhenSettled();
     clearSketch();
     toggleSketchMode(false);
   }
@@ -1994,7 +2219,7 @@
 
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
-    bubble.style.background = col.bg;
+    bubble.style.setProperty('--pc', col.dot);
     bubble.style.padding = '0';
     bubble.style.overflow = 'hidden';
     bubble.style.position = 'relative';
@@ -2006,36 +2231,23 @@
 
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
-
-    const commentBtn = document.createElement('button');
-    commentBtn.className = 'msg-action-btn';
-    commentBtn.title = 'Add note';
-    commentBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2h8v7H6.5L4 11V9H2z"/></svg>`;
-    commentBtn.addEventListener('pointerdown', e => e.stopPropagation());
-    commentBtn.addEventListener('click', () => toggleComment(parseInt(wrap.dataset.msgIdx, 10), wrap));
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'msg-action-btn';
-    delBtn.title = 'Delete';
-    delBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>`;
-    delBtn.addEventListener('pointerdown', e => e.stopPropagation());
-    delBtn.addEventListener('click', () => requestDeleteMessage(wrap, delBtn));
-
-    actions.appendChild(commentBtn);
-    actions.appendChild(delBtn);
+    const delBtn = makeActionBtn(ICON_DELETE, 'Delete', () => requestDeleteMessage(wrap, delBtn));
+    actions.append(
+      makeActionBtn(ICON_COMMENT, 'Add note', () => toggleComment(msgIdxOf(wrap), wrap)),
+      delBtn,
+    );
     bubble.appendChild(actions);
 
-    wrap.appendChild(nameEl);
-    wrap.appendChild(bubble);
+    wrap.append(nameEl, bubble);
 
     if (messages[msgIdx].comment) renderComment(wrap, msgIdx);
 
-    document.getElementById('messages').appendChild(wrap);
+    msgsEl.appendChild(wrap);
     if (_save) saveSession();
   }
 
   // ── Start chat ──
-  document.getElementById('msg-input').addEventListener('keydown', e => {
+  msgInputEl.addEventListener('keydown', e => {
     if (e.key === 'Enter') sendMsg();
   });
 
@@ -2051,27 +2263,21 @@
       if (empty) empty.remove();
       for (const m of loadedMessages) appendMessage(m.person, m.text, false, '', false);
       saveSession();
-      document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+      scrollMessagesToBottomWhenSettled();
     }
 
-    document.getElementById('msg-input').focus();
+    msgInputEl.focus();
   }
 
   function showApp() {
     document.querySelector('.setup-wrap').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
+    appEl.style.display = 'flex';
     document.getElementById('notes-panel').classList.add('visible');
   }
 
   function hideApp() {
-    document.getElementById('app').style.display = 'none';
+    appEl.style.display = 'none';
     document.getElementById('notes-panel').classList.remove('visible');
-  }
-
-  function buildHeader() {
-    // Header-people removed — speaker names already appear above each message
-    // and on the chips at the bottom. Kept as a no-op so call sites don't need
-    // to be touched everywhere.
   }
 
   function refreshPositions() {
@@ -2083,7 +2289,7 @@
   }
 
   function buildSpeakerRow() {
-    const row = document.getElementById('speaker-row');
+    const row = speakerRowEl;
     row.innerHTML = '';
 
     names.forEach((n, i) => {
@@ -2095,27 +2301,32 @@
       btn.addEventListener('click', () => setActive(i));
       btn.addEventListener('dblclick', e => {
         e.stopPropagation();
-        const nameSpan = btn.querySelector('.s-name');
+        // Replace the entire button with a standalone input. Nesting an input
+        // inside a button creates browser-specific space/enter activation
+        // quirks ("glitches" while typing) — replacing the whole button avoids
+        // them entirely.
         const input = document.createElement('input');
         input.className = 'speaker-rename-input';
         input.value = names[i];
         input.maxLength = 28;
-        input.style.width = Math.max(40, nameSpan.offsetWidth + 8) + 'px';
-        nameSpan.replaceWith(input);
+        input.style.width = Math.max(80, btn.offsetWidth) + 'px';
+        btn.replaceWith(input);
         input.focus();
         input.select();
+        let saved = false;
         function save() {
+          if (saved) return;
+          saved = true;
           const val = input.value.trim() || names[i];
           names[i] = val;
           document.querySelectorAll(`.msg-name[data-person="${i}"]`).forEach(el => el.textContent = val);
           saveSession();
-          buildHeader();
           buildSpeakerRow();
         }
         input.addEventListener('blur', save);
         input.addEventListener('keydown', e => {
           if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-          if (e.key === 'Escape') { input.removeEventListener('blur', save); buildSpeakerRow(); }
+          else if (e.key === 'Escape') { saved = true; buildSpeakerRow(); }
         });
       });
       row.appendChild(btn);
@@ -2134,7 +2345,7 @@
   }
 
   function showAddSpeakerInput() {
-    const row = document.getElementById('speaker-row');
+    const row = speakerRowEl;
     // Remove the + button
     const addBtn = row.querySelector('.speaker-add-btn');
     if (addBtn) addBtn.remove();
@@ -2154,7 +2365,6 @@
       input.remove();
       if (name) {
         names.push(name);
-        buildHeader();
         buildSpeakerRow();
         setActive(names.length - 1);
         refreshPositions();
@@ -2176,12 +2386,11 @@
 
   function setActive(idx) {
     active = idx;
-    document.querySelectorAll('.speaker-btn').forEach((b, i) => {
+    speakerRowEl.querySelectorAll('.speaker-btn').forEach((b, i) => {
       b.classList.toggle('active', i === idx);
     });
-    const input = document.getElementById('msg-input');
-    input.placeholder = `Speaking as ${names[idx]}…`;
-    input.focus();
+    msgInputEl.placeholder = `Speaking as ${names[idx]}…`;
+    msgInputEl.focus();
   }
 
   function appendMessage(personIdx, text, animate = true, comment = '', _save = true) {
@@ -2206,7 +2415,7 @@
 
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
-    bubble.style.background = col.bg;
+    bubble.style.setProperty('--pc', col.dot);
 
     const textSpan = document.createElement('span');
     textSpan.className = 'msg-text';
@@ -2215,53 +2424,24 @@
 
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
-
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'msg-action-btn';
-    copyBtn.title = 'Copy message';
-    copyBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="6" height="6" rx="1"/><path d="M2 7V2.5a1 1 0 0 1 1-1H7"/></svg>`;
-    copyBtn.addEventListener('pointerdown', e => e.stopPropagation());
-    copyBtn.addEventListener('click', () => {
-      const m = messages[parseInt(wrap.dataset.msgIdx, 10)];
-      navigator.clipboard.writeText(m?.text || '').then(() => showToast('copied'));
-    });
-
-    const commentBtn = document.createElement('button');
-    commentBtn.className = 'msg-action-btn';
-    commentBtn.title = 'Add note';
-    commentBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2h8v7H6.5L4 11V9H2z"/></svg>`;
-    commentBtn.addEventListener('pointerdown', e => e.stopPropagation());
-    commentBtn.addEventListener('click', () => toggleComment(parseInt(wrap.dataset.msgIdx, 10), wrap));
-
-    const editBtn = document.createElement('button');
-    editBtn.className = 'msg-action-btn';
-    editBtn.title = 'Edit';
-    editBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l2 2-5.5 5.5H3v-1.5L8 2z"/></svg>`;
-    editBtn.addEventListener('pointerdown', e => e.stopPropagation());
-    editBtn.addEventListener('click', () => editMessage(parseInt(wrap.dataset.msgIdx, 10), bubble));
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'msg-action-btn';
-    delBtn.title = 'Delete';
-    delBtn.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg>`;
-    delBtn.addEventListener('pointerdown', e => e.stopPropagation());
-    delBtn.addEventListener('click', () => requestDeleteMessage(wrap, delBtn));
-
-    actions.appendChild(copyBtn);
-    actions.appendChild(commentBtn);
-    actions.appendChild(editBtn);
-    actions.appendChild(delBtn);
+    const delBtn = makeActionBtn(ICON_DELETE, 'Delete', () => requestDeleteMessage(wrap, delBtn));
+    actions.append(
+      makeActionBtn(ICON_COPY,    'Copy message', () => {
+        const m = messages[msgIdxOf(wrap)];
+        navigator.clipboard.writeText(m?.text || '').then(() => showToast('copied'));
+      }),
+      makeActionBtn(ICON_COMMENT, 'Add note', () => toggleComment(msgIdxOf(wrap), wrap)),
+      makeActionBtn(ICON_EDIT,    'Edit',     () => editMessage(msgIdxOf(wrap), bubble)),
+      delBtn,
+    );
     bubble.appendChild(actions);
 
-    wrap.appendChild(nameEl);
-    wrap.appendChild(bubble);
+    wrap.append(nameEl, bubble);
 
     // Restore saved comment if any
-    if (messages[msgIdx].comment) {
-      renderComment(wrap, msgIdx);
-    }
+    if (messages[msgIdx].comment) renderComment(wrap, msgIdx);
 
-    document.getElementById('messages').appendChild(wrap);
+    msgsEl.appendChild(wrap);
     if (_save) saveSession();
   }
 
@@ -2291,20 +2471,36 @@
     wrap.appendChild(note);
   }
 
+  function scrollMessagesToBottom() {
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+  }
+
+  // Scroll to the bottom now, then again as async layout settles. On a fresh
+  // refresh the web fonts and sketch images usually aren't loaded yet, so the
+  // initial scrollHeight is too short and a single scroll lands above the
+  // bottom. Re-scrolling after the next frame, after fonts load, and after each
+  // sketch image decodes makes the restore reliably bottom-anchored.
+  function scrollMessagesToBottomWhenSettled() {
+    scrollMessagesToBottom();
+    requestAnimationFrame(scrollMessagesToBottom);
+    if (document.fonts?.ready) document.fonts.ready.then(scrollMessagesToBottom);
+    msgsEl.querySelectorAll('img.msg-sketch').forEach(img => {
+      if (!img.complete) img.addEventListener('load', scrollMessagesToBottom, { once: true });
+    });
+  }
+
   function sendMsg() {
-    const input = document.getElementById('msg-input');
-    const text = input.value.trim();
+    const text = msgInputEl.value.trim();
     if (!text) return;
-    input.value = '';
+    msgInputEl.value = '';
 
     const empty = document.getElementById('empty-msg');
     if (empty) empty.remove();
 
     appendMessage(active, text);
 
-    const msgs = document.getElementById('messages');
-    msgs.scrollTop = msgs.scrollHeight;
-    input.focus();
+    scrollMessagesToBottom();
+    msgInputEl.focus();
   }
 
   function resetAll() {
@@ -2314,30 +2510,24 @@
     deleteSession(state.activeId);
   }
 
+  // Cmd+digit switches speakers, Alt+digit switches session tabs.
+  // Uses e.code so Mac's Option+1 (which produces ¡ as e.key) still works.
+  // Shift excluded so we don't collide with Cmd+Shift+3/4/5 (Mac screenshots).
   document.addEventListener('keydown', e => {
-    if (!e.metaKey) return;
-    const n = parseInt(e.key, 10);
-    if (n >= 1 && n <= names.length && document.getElementById('app').style.display !== 'none') {
+    if (e.shiftKey) return;
+    if (!e.metaKey && !e.altKey) return;
+    if (!e.code || !e.code.startsWith('Digit')) return;
+    if (appEl.style.display === 'none') return;
+    const n = parseInt(e.code.slice(5), 10);
+    if (e.metaKey && n >= 1 && n <= names.length) {
       e.preventDefault();
       setActive(n - 1);
+    } else if (e.altKey && n >= 1 && n <= MAX_SESSIONS) {
+      const targetId = sessionList()[n - 1];
+      if (!targetId) return;
+      e.preventDefault();
+      switchToSession(targetId);
     }
-  });
-
-  // Option/Alt + 1/2/3 switches between session tabs.
-  // Using e.code instead of e.key because Option+1 on Mac otherwise produces ¡.
-  document.addEventListener('keydown', e => {
-    if (!e.altKey) return;
-    let num = null;
-    if (e.code === 'Digit1') num = 1;
-    else if (e.code === 'Digit2') num = 2;
-    else if (e.code === 'Digit3') num = 3;
-    if (!num) return;
-    if (document.getElementById('app').style.display === 'none') return;
-    const ids = sessionList();
-    const targetId = ids[num - 1];
-    if (!targetId) return;
-    e.preventDefault();
-    switchToSession(targetId);
   });
 
   function editMessage(msgIdx, bubble) {
@@ -2484,16 +2674,20 @@
     saveSession();
     const wrap = document.querySelector(`[data-msg-idx="${msgIdx}"]`);
     if (!wrap) return;
+    // Reindex DOM immediately so rapid deletes can't desync — only the fade-out
+    // and element removal are deferred. We mark the deleted element with a
+    // sentinel index AND disable pointer events so a stray click on the fading
+    // wrap can't fire a handler that reads -1 back as a real index.
+    wrap.dataset.msgIdx = '-1';
+    wrap.style.pointerEvents = 'none';
+    document.querySelectorAll('[data-msg-idx]').forEach(el => {
+      const i = parseInt(el.dataset.msgIdx, 10);
+      if (i > msgIdx) el.dataset.msgIdx = i - 1;
+    });
     wrap.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
     wrap.style.opacity = '0';
     wrap.style.transform = 'scale(0.95)';
-    setTimeout(() => {
-      wrap.remove();
-      document.querySelectorAll('[data-msg-idx]').forEach(el => {
-        const i = parseInt(el.dataset.msgIdx, 10);
-        if (i > msgIdx) el.dataset.msgIdx = i - 1;
-      });
-    }, 200);
+    setTimeout(() => wrap.remove(), 200);
   }
 
   function startDrag(e) {
@@ -2505,11 +2699,11 @@
     const msgIdx = parseInt(wrap.dataset.msgIdx, 10);
     const bubble = wrap.querySelector('.msg-bubble');
     const rect = bubble.getBoundingClientRect();
-    const origBg = bubble.style.background;
+    const m = messages[msgIdx];
+    const origPc = palette(m.person).dot;
 
     const ghost = document.createElement('div');
     ghost.className = 'msg-bubble';
-    const m = messages[msgIdx];
     if (m.type === 'sketch') {
       const gi = document.createElement('img');
       gi.className = 'msg-sketch'; gi.src = m.dataUrl;
@@ -2524,19 +2718,20 @@
       top: rect.top + 'px',
       width: rect.width + 'px',
       margin: '0',
-      background: origBg,
       pointerEvents: 'none',
       zIndex: '1000',
       boxShadow: '0 10px 36px rgba(0,0,0,0.10)',
       transition: 'background 0.28s ease',
       willChange: 'transform',
     });
+    // Ghost is a .msg-bubble, so its tint comes from --pc via the same color-mix.
+    ghost.style.setProperty('--pc', origPc);
     document.body.appendChild(ghost);
 
     wrap.style.transition = 'opacity 0.15s ease';
     wrap.style.opacity = '0.15';
 
-    dragging = { wrap, ghost, msgIdx, origBg, startX: e.clientX, startY: e.clientY, pendingTarget: null };
+    dragging = { wrap, ghost, msgIdx, origPc, startX: e.clientX, startY: e.clientY, pendingTarget: null };
     document.addEventListener('pointermove', onDragMove);
     document.addEventListener('pointerup', onDragEnd);
     document.addEventListener('pointercancel', onDragEnd);
@@ -2551,11 +2746,11 @@
       const targetIdx = dx < 0 ? 0 : 1;
       if (dragging.pendingTarget !== targetIdx) {
         dragging.pendingTarget = targetIdx;
-        dragging.ghost.style.background = palette(targetIdx).bg;
+        dragging.ghost.style.setProperty('--pc', palette(targetIdx).dot);
       }
     } else if (dragging.pendingTarget !== null) {
       dragging.pendingTarget = null;
-      dragging.ghost.style.background = dragging.origBg;
+      dragging.ghost.style.setProperty('--pc', dragging.origPc);
     }
   }
 
@@ -2589,9 +2784,8 @@
     const wrap = document.querySelector(`[data-msg-idx="${msgIdx}"]`);
     if (!wrap) return;
     const bubble = wrap.querySelector('.msg-bubble');
-    bubble.style.transition = 'background 0.32s ease';
-    bubble.style.background = palette(personIdx).bg;
-    setTimeout(() => { bubble.style.transition = ''; }, 340);
+    // .msg-bubble already transitions `background`, so updating --pc fades.
+    bubble.style.setProperty('--pc', palette(personIdx).dot);
     const nameEl = wrap.querySelector('.msg-name');
     nameEl.textContent = names[personIdx];
     nameEl.dataset.person = personIdx;
@@ -2639,7 +2833,8 @@
   }
 
   function saveSession() {
-    if (current()) current().updatedAt = Date.now();
+    const s = current();
+    if (s) s.updatedAt = Date.now();
     try {
       localStorage.setItem(STATE_KEY, JSON.stringify(state));
     } catch (e) {
@@ -2788,7 +2983,7 @@
       saveSession();
       // Drop back to setup
       hideApp();
-      document.getElementById('messages').innerHTML = '<div class="empty" id="empty-msg">The conversation begins here.</div>';
+      msgsEl.innerHTML = '<div class="empty" id="empty-msg"><span class="empty-orb"></span>The conversation begins here.</div>';
       const promptEl = document.getElementById('prompt-text');
       promptEl.textContent = 'press prompt for a question';
       promptEl.className = 'placeholder';
@@ -2820,9 +3015,7 @@
     messages = session.messages;
     active = 0;
 
-    const msgsEl = document.getElementById('messages');
-    msgsEl.innerHTML = '<div class="empty" id="empty-msg">The conversation begins here.</div>';
-    buildHeader();
+    msgsEl.innerHTML = '<div class="empty" id="empty-msg"><span class="empty-orb"></span>The conversation begins here.</div>';
     buildSpeakerRow();
     setActive(0);
 
@@ -2831,13 +3024,18 @@
       if (empty) empty.remove();
       const snapshot = messages.slice();
       messages.length = 0;
+      // Batch all appends under one layout pass — hide while inserting so each
+      // appendChild doesn't trigger an individual reflow.
+      const prevDisplay = msgsEl.style.display;
+      msgsEl.style.display = 'none';
       for (const m of snapshot) {
         if (m.type === 'sketch') appendSketch(m.person, m.dataUrl, m.canvasW, m.canvasH, false, m.comment || '', false);
         else                     appendMessage(m.person, m.text, false, m.comment || '', false);
       }
+      msgsEl.style.display = prevDisplay;
     }
 
-    msgsEl.scrollTop = msgsEl.scrollHeight;
+    scrollMessagesToBottomWhenSettled();
     const note = currentNote();
     notesArea.value = note?.content || '';
     renderNoteTabs();
@@ -3065,12 +3263,15 @@
   }
 
   // ── Distil ──
+  let toastTimer = null;
   function showToast(msg) {
     const t = document.getElementById('distil-toast');
     t.textContent = msg;
     t.style.opacity = '1';
     t.style.transform = 'translateX(-50%) translateY(0)';
-    setTimeout(() => {
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toastTimer = null;
       t.style.opacity = '0';
       t.style.transform = 'translateX(-50%) translateY(12px)';
     }, 2200);
@@ -3107,6 +3308,27 @@
   addBtnTooltip('image-btn',  'export as an image');
   addBtnTooltip('save-btn',   'export as a text file');
   addBtnTooltip('reset-btn',  'clear the conversation and start over');
+  // ── Theme (warm dark / light) ──
+  const THEME_KEY = 'inner_dialogues_theme';
+  const themeBtn = document.getElementById('theme-btn');
+  // Moon shown in light mode (click → go dark); sun shown in dark mode.
+  const MOON_ICON = `<svg viewBox="0 0 16 16"><path d="M13.2 9.6A5.4 5.4 0 0 1 6.4 2.8 5.4 5.4 0 1 0 13.2 9.6z"/></svg>`;
+  const SUN_ICON  = `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.1"/><path d="M8 1.3v1.6M8 13.1v1.6M1.3 8h1.6M13.1 8h1.6M3.3 3.3l1.1 1.1M11.6 11.6l1.1 1.1M12.7 3.3l-1.1 1.1M4.4 11.6l-1.1 1.1"/></svg>`;
+  function setTheme(dark) {
+    document.body.classList.toggle('theme-dark', dark);
+    themeBtn.innerHTML = dark ? SUN_ICON : MOON_ICON;
+    themeBtn.title = dark ? 'switch to light' : 'switch to dark';
+    try { localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light'); } catch (_) {}
+  }
+  themeBtn.addEventListener('click', () => setTheme(!document.body.classList.contains('theme-dark')));
+  // Stored preference wins; otherwise follow the OS.
+  const storedTheme = localStorage.getItem(THEME_KEY);
+  if (storedTheme === 'dark' || storedTheme === 'light') {
+    setTheme(storedTheme === 'dark');
+  } else {
+    setTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+
   // ── Focus mode ──
   const FOCUS_MODE_KEY = 'inner_dialogues_focus_mode';
   const focusBtn = document.getElementById('focus-btn');
@@ -3115,7 +3337,7 @@
   const FOCUS_ICON_IN  = `<svg viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>`;
   const FOCUS_ICON_OUT = `<svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1.5"/><rect x="7" y="7" width="2" height="2" fill="currentColor" stroke="none"/></svg>`;
   function setFocusMode(on) {
-    document.getElementById('app').classList.toggle('focus-mode', on);
+    appEl.classList.toggle('focus-mode', on);
     document.body.classList.toggle('focus-mode-on', on);
     focusBtn.innerHTML = on ? FOCUS_ICON_IN : FOCUS_ICON_OUT;
     focusBtn.title = on ? 'exit focus mode' : 'focus mode — hide tabs, controls, and notes';
@@ -3123,7 +3345,7 @@
     try { localStorage.setItem(FOCUS_MODE_KEY, on ? '1' : '0'); } catch (_) {}
   }
   focusBtn.addEventListener('click', () => {
-    setFocusMode(!document.getElementById('app').classList.contains('focus-mode'));
+    setFocusMode(!appEl.classList.contains('focus-mode'));
   });
   // Default to focus mode unless the user has explicitly turned it off before
   if (localStorage.getItem(FOCUS_MODE_KEY) !== '0') setFocusMode(true);
@@ -3350,10 +3572,20 @@
     document.getElementById('parts-map').classList.remove('visible');
   }
 
+  function exportAllConversations() {
+    const sessions = Object.values(state.sessions || {});
+    if (sessions.length === 0) return;
+    const blocks = sessions.map(s => sessionToText(s.names || [], s.messages || [], s.notes));
+    const separator = '\n\n' + '═'.repeat(48) + '\n\n';
+    const date = new Date().toISOString().slice(0, 10);
+    downloadTextFile(`inner-dialogues-${date}.txt`, blocks.join(separator));
+  }
+
   document.getElementById('parts-map-btn').addEventListener('click', () => {
     renderPartsMap();
     document.getElementById('parts-map').classList.add('visible');
   });
+  document.getElementById('parts-map-export-btn').addEventListener('click', exportAllConversations);
   document.querySelector('.parts-map-close').addEventListener('click', closePartsMap);
   document.getElementById('parts-map').addEventListener('click', e => {
     if (e.target === e.currentTarget) closePartsMap();

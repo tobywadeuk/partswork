@@ -20,8 +20,10 @@
     --radius: 14px;
     --radius-sm: 8px;
     /* How strongly a part's colour tints its message bubble over the paper.
-       Derived from the dot colour via color-mix so it adapts to the theme. */
-    --bubble-mix: 24%;
+       Derived from the dot colour via color-mix so it adapts to the theme.
+       ~18% matches the original hand-picked tints (the brown part-1 dot goes
+       muddy/dark above ~20%). Dark mode runs higher since it tints over charcoal. */
+    --bubble-mix: 18%;
     /* Whisper-thin tinted edge so bubbles have just-barely definition. */
     --bubble-border: color-mix(in srgb, var(--pc, var(--ink-muted)) 6%, transparent);
     /* Soft warm elevation so cards float on the canvas. */
@@ -842,13 +844,16 @@
     border-radius: 13px;
     word-break: break-word;
     position: relative;
-    /* Tint = the part's colour washed over the paper. One source of truth
-       (--pc, the dot colour) → harmonious across parts and themes. The
-       whisper-thin --bubble-border just barely defines the edge (off in dark). */
-    background: var(--paper);
-    background: color-mix(in srgb, var(--pc, var(--ink-muted)) var(--bubble-mix), var(--paper));
+    /* Light mode uses the original hand-picked tints (--pbg). Dark mode has no
+       curated values, so it derives the tint from the part colour (--pc) via
+       color-mix below. The whisper-thin --bubble-border defines the edge. */
+    background: var(--pbg, var(--paper));
     border: 1px solid var(--bubble-border);
     transition: background 0.32s ease, border-color 0.32s ease;
+  }
+
+  body.theme-dark .msg-bubble {
+    background: color-mix(in srgb, var(--pc, var(--ink-muted)) var(--bubble-mix), var(--paper));
   }
 
   /* bubble corner tails set via position class — background set inline */
@@ -2220,6 +2225,7 @@
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
     bubble.style.setProperty('--pc', col.dot);
+    bubble.style.setProperty('--pbg', col.bg);
     bubble.style.padding = '0';
     bubble.style.overflow = 'hidden';
     bubble.style.position = 'relative';
@@ -2416,6 +2422,7 @@
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
     bubble.style.setProperty('--pc', col.dot);
+    bubble.style.setProperty('--pbg', col.bg);
 
     const textSpan = document.createElement('span');
     textSpan.className = 'msg-text';
@@ -2701,6 +2708,7 @@
     const rect = bubble.getBoundingClientRect();
     const m = messages[msgIdx];
     const origPc = palette(m.person).dot;
+    const origPbg = palette(m.person).bg;
 
     const ghost = document.createElement('div');
     ghost.className = 'msg-bubble';
@@ -2724,14 +2732,15 @@
       transition: 'background 0.28s ease',
       willChange: 'transform',
     });
-    // Ghost is a .msg-bubble, so its tint comes from --pc via the same color-mix.
+    // Ghost is a .msg-bubble, so its tint comes from --pbg (light) / --pc (dark).
     ghost.style.setProperty('--pc', origPc);
+    ghost.style.setProperty('--pbg', origPbg);
     document.body.appendChild(ghost);
 
     wrap.style.transition = 'opacity 0.15s ease';
     wrap.style.opacity = '0.15';
 
-    dragging = { wrap, ghost, msgIdx, origPc, startX: e.clientX, startY: e.clientY, pendingTarget: null };
+    dragging = { wrap, ghost, msgIdx, origPc, origPbg, startX: e.clientX, startY: e.clientY, pendingTarget: null };
     document.addEventListener('pointermove', onDragMove);
     document.addEventListener('pointerup', onDragEnd);
     document.addEventListener('pointercancel', onDragEnd);
@@ -2747,10 +2756,12 @@
       if (dragging.pendingTarget !== targetIdx) {
         dragging.pendingTarget = targetIdx;
         dragging.ghost.style.setProperty('--pc', palette(targetIdx).dot);
+        dragging.ghost.style.setProperty('--pbg', palette(targetIdx).bg);
       }
     } else if (dragging.pendingTarget !== null) {
       dragging.pendingTarget = null;
       dragging.ghost.style.setProperty('--pc', dragging.origPc);
+      dragging.ghost.style.setProperty('--pbg', dragging.origPbg);
     }
   }
 
@@ -2784,8 +2795,9 @@
     const wrap = document.querySelector(`[data-msg-idx="${msgIdx}"]`);
     if (!wrap) return;
     const bubble = wrap.querySelector('.msg-bubble');
-    // .msg-bubble already transitions `background`, so updating --pc fades.
+    // .msg-bubble already transitions `background`, so updating the tint fades.
     bubble.style.setProperty('--pc', palette(personIdx).dot);
+    bubble.style.setProperty('--pbg', palette(personIdx).bg);
     const nameEl = wrap.querySelector('.msg-name');
     nameEl.textContent = names[personIdx];
     nameEl.dataset.person = personIdx;

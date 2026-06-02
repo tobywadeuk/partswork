@@ -65,6 +65,9 @@
     justify-content: center;
     padding: 20px;
     transition: background 0.5s ease, color 0.5s ease;
+    /* Never scroll the page sideways — the ambient layer (body::before) bleeds
+       past the viewport edges by design, and nested rows do their own scrolling. */
+    overflow-x: hidden;
   }
 
   /* Barely-there ambient drift behind everything — two soft warm blooms that

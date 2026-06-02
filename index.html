@@ -742,6 +742,7 @@
   .messages {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;   /* never scroll the convo sideways (overflow-y:auto would otherwise force x to auto) */
     padding: 24px 20px;
     display: flex;
     flex-direction: column;

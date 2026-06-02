@@ -1134,6 +1134,13 @@
     border-color: var(--ink);
   }
 
+  /* Highlighted while a message is dragged over it (reassign drop target). */
+  .speaker-btn.drop-target {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 2px var(--ink-faint);
+    transform: translateY(-1px);
+  }
+
   /* ── Sketch ── */
   #sketch-panel {
     display: none;
@@ -1519,7 +1526,7 @@
 
 <script>
   const MAX_PEOPLE = 4;
-  const MAX_SESSIONS = 3;
+  const MAX_SESSIONS = 4;
   const STATE_KEY = 'inner_dialogues_state';
   const LEGACY_SESSION_KEY = 'partswork_session';
   const LEGACY_NOTES_KEY = 'partswork_notes';
@@ -1554,7 +1561,6 @@
   let dragging = null;
   let pendingDelete = null;
   let state = { activeId: null, sessions: {} };
-  const DRAG_THRESHOLD = 72;
 
   let sketchMode = false;
   let sketchPainting = false;
@@ -2302,6 +2308,7 @@
       const btn = document.createElement('button');
       btn.className = 'speaker-btn' + (i === active ? ' active' : '');
       btn.id = `tab-${i}`;
+      btn.dataset.person = i;   // drop target for drag-to-reassign
       btn.title = 'double-tap to rename';
       btn.innerHTML = `<span class="s-dot" style="background:${palette(i).dot};"></span><span class="s-name">${escHtml(n)}</span>`;
       btn.addEventListener('click', () => setActive(i));
@@ -2740,7 +2747,7 @@
     wrap.style.transition = 'opacity 0.15s ease';
     wrap.style.opacity = '0.15';
 
-    dragging = { wrap, ghost, msgIdx, origPc, origPbg, startX: e.clientX, startY: e.clientY, pendingTarget: null };
+    dragging = { wrap, ghost, msgIdx, origPc, origPbg, startX: e.clientX, startY: e.clientY, targetPart: null, dropChip: null };
     document.addEventListener('pointermove', onDragMove);
     document.addEventListener('pointerup', onDragEnd);
     document.addEventListener('pointercancel', onDragEnd);
@@ -2748,20 +2755,23 @@
 
   function onDragMove(e) {
     if (!dragging) return;
-    const dx = e.clientX - dragging.startX;
-    dragging.ghost.style.transform = `translate(${dx}px, ${e.clientY - dragging.startY}px)`;
+    dragging.ghost.style.transform = `translate(${e.clientX - dragging.startX}px, ${e.clientY - dragging.startY}px)`;
 
-    if (Math.abs(dx) >= DRAG_THRESHOLD && names.length >= 2) {
-      const targetIdx = dx < 0 ? 0 : 1;
-      if (dragging.pendingTarget !== targetIdx) {
-        dragging.pendingTarget = targetIdx;
-        dragging.ghost.style.setProperty('--pc', palette(targetIdx).dot);
-        dragging.ghost.style.setProperty('--pbg', palette(targetIdx).bg);
-      }
-    } else if (dragging.pendingTarget !== null) {
-      dragging.pendingTarget = null;
-      dragging.ghost.style.setProperty('--pc', dragging.origPc);
-      dragging.ghost.style.setProperty('--pbg', dragging.origPbg);
+    // Reassign to ANY part: whichever speaker chip is under the pointer becomes
+    // the drop target. Ghost is pointer-events:none so it's skipped by the hit
+    // test; the speaker-add "+" has no data-person so it's ignored.
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    const chip = under && under.closest ? under.closest('.speaker-btn') : null;
+    const part = (chip && chip.dataset.person !== undefined) ? parseInt(chip.dataset.person, 10) : null;
+
+    if (part !== dragging.targetPart) {
+      if (dragging.dropChip) dragging.dropChip.classList.remove('drop-target');
+      dragging.targetPart = part;
+      dragging.dropChip = part !== null ? chip : null;
+      if (part !== null) chip.classList.add('drop-target');
+      // Recolour the ghost to preview the destination part's tint.
+      dragging.ghost.style.setProperty('--pc',  part !== null ? palette(part).dot : dragging.origPc);
+      dragging.ghost.style.setProperty('--pbg', part !== null ? palette(part).bg  : dragging.origPbg);
     }
   }
 
@@ -2771,11 +2781,12 @@
     document.removeEventListener('pointerup', onDragEnd);
     document.removeEventListener('pointercancel', onDragEnd);
 
-    const { wrap, ghost, msgIdx } = dragging;
-    const dx = (e.clientX ?? dragging.startX) - dragging.startX;
+    const { wrap, ghost, msgIdx, targetPart, dropChip } = dragging;
+    if (dropChip) dropChip.classList.remove('drop-target');
 
-    if (e.type !== 'pointercancel' && Math.abs(dx) >= DRAG_THRESHOLD && names.length >= 2) {
-      reassignMessage(msgIdx, dx < 0 ? 0 : 1);
+    // Dropped on a speaker chip for a different part → reassign.
+    if (e.type !== 'pointercancel' && targetPart != null && targetPart !== messages[msgIdx].person) {
+      reassignMessage(msgIdx, targetPart);
     }
 
     ghost.style.transition = 'opacity 0.18s ease, transform 0.18s ease';

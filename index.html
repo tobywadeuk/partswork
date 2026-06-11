@@ -1138,6 +1138,22 @@
     border-color: var(--ink);
   }
 
+  /* During a message drag, make all chips visually prominent so the user
+     knows to drag here. Drop-target chip gets an extra strong highlight. */
+  body.dragging-msg .speaker-btn {
+    border-color: var(--ink-faint);
+    transform: scale(1.05) translateY(-1px);
+    transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.12s, box-shadow 0.12s;
+  }
+
+  body.dragging-msg .speaker-btn.drop-target {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+    transform: scale(1.12) translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  }
+
   /* Highlighted while a message is dragged over it (reassign drop target). */
   .speaker-btn.drop-target {
     border-color: var(--ink);
@@ -1391,6 +1407,7 @@
     .msg-wrap { max-width: 82%; }
     .msg-input, .name-row input, .speaker-new-input { font-size: 16px; }
   }
+
 </style>
 </head>
 <body>
@@ -1474,6 +1491,7 @@
 <!-- Theme toggle — fixed top-right of the viewport, always available -->
 <button id="theme-btn" type="button" title="toggle dark mode"></button>
 
+
 <!-- Floating parts-map opener (outside #app, very subtle) -->
 <button id="parts-map-btn" type="button" title="parts map — see all parts across dialogues">
   <svg viewBox="0 0 16 16"><line x1="4" y1="5" x2="12" y2="5"/><line x1="4" y1="5" x2="8" y2="12"/><line x1="12" y1="5" x2="8" y2="12"/><circle cx="4" cy="5" r="1.8" fill="currentColor"/><circle cx="12" cy="5" r="1.8" fill="currentColor"/><circle cx="8" cy="12" r="1.8" fill="currentColor"/></svg>
@@ -1527,6 +1545,7 @@
     </button>
   </div>
 </div>
+
 
 <script>
   const MAX_PEOPLE = 4;
@@ -2289,11 +2308,13 @@
     document.querySelector('.setup-wrap').style.display = 'none';
     appEl.style.display = 'flex';
     document.getElementById('notes-panel').classList.add('visible');
+    document.body.classList.add('in-app');
   }
 
   function hideApp() {
     appEl.style.display = 'none';
     document.getElementById('notes-panel').classList.remove('visible');
+    document.body.classList.remove('in-app');
   }
 
   function refreshPositions() {
@@ -2671,7 +2692,7 @@
       }
     }
     function onOutside(e) {
-      if (e.target !== button) cancel();
+      if (!button.contains(e.target)) cancel();
     }
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('pointerdown', onOutside, true);
@@ -2752,6 +2773,7 @@
     wrap.style.opacity = '0.15';
 
     dragging = { wrap, ghost, msgIdx, origPc, origPbg, startX: e.clientX, startY: e.clientY, targetPart: null, dropChip: null };
+    document.body.classList.add('dragging-msg');
     document.addEventListener('pointermove', onDragMove);
     document.addEventListener('pointerup', onDragEnd);
     document.addEventListener('pointercancel', onDragEnd);
@@ -2801,6 +2823,7 @@
     wrap.style.opacity = '';
     setTimeout(() => { wrap.style.transition = ''; }, 200);
 
+    document.body.classList.remove('dragging-msg');
     dragging = null;
   }
 
@@ -3454,6 +3477,11 @@
     svg.innerHTML = '';
     cancelPartsMapAnimation();
 
+    // Pull theme colours so the map re-themes for dark mode (was hardcoded).
+    const cs = getComputedStyle(document.body);
+    const cInk   = cs.getPropertyValue('--ink').trim()       || '#1a1410';
+    const cFaint = cs.getPropertyValue('--ink-faint').trim() || '#b8a898';
+
     const W = 540, H = 380;
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
@@ -3462,7 +3490,7 @@
       const text = svgEl('text', {
         x: W / 2, y: H / 2,
         'text-anchor': 'middle', 'dominant-baseline': 'middle',
-        fill: '#b8a898',
+        fill: cFaint,
         'font-family': "'Lora', Georgia, serif",
         'font-style': 'italic', 'font-size': '14',
       });
@@ -3507,7 +3535,7 @@
       if (!na || !nb) continue;
       const line = svgEl('line', {
         x1: na.x, y1: na.y, x2: nb.x, y2: nb.y,
-        stroke: '#b8a898', 'stroke-width': '1.2', opacity: '0.55',
+        stroke: cFaint, 'stroke-width': '1.2', opacity: '0.55',
       });
       svg.appendChild(line);
       lineEls.push({ el: line, from: na, to: nb });
@@ -3534,7 +3562,7 @@
       node.label = svgEl('text', {
         x: node.x, y: node.y + LABEL_DY,
         'text-anchor': 'middle',
-        fill: '#1a1410',
+        fill: cInk,
         'font-family': "'DM Mono', monospace",
         'font-size': '11', 'letter-spacing': '0.04em',
         style: 'pointer-events: none; user-select: none;',
@@ -3629,6 +3657,7 @@
   function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+
 </script>
 </body>
 </html>

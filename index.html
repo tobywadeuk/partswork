@@ -2791,26 +2791,50 @@
     document.addEventListener('pointercancel', onDragEnd);
   }
 
+  // Maps a horizontal drag delta to a person index based on the current layout.
+  // The layout positions (left/right/mid-left/mid-right) are spaced into zones:
+  //   2 voices:  left <-60  |  right >60
+  //   3 voices:  left <-60  |  right >60  (mid/person-2 needs chip drop)
+  //   4 voices:  left <-90  |  mid-left -90…-35  |  mid-right 35…90  |  right >90
+  function swipePerson(dx) {
+    const n = names.length;
+    if (n < 2) return -1;
+    if (n <= 3) {
+      if (dx < -60) return 0;
+      if (dx >  60) return 1;
+    } else {
+      if (dx < -90) return 0;
+      if (dx < -35) return 2;
+      if (dx >  90) return 1;
+      if (dx >  35) return 3;
+    }
+    return -1;
+  }
+
   function onDragMove(e) {
     if (!dragging) return;
-    dragging.ghost.style.transform = `translate(${e.clientX - dragging.startX}px, ${e.clientY - dragging.startY}px)`;
+    const dx = e.clientX - dragging.startX;
+    dragging.ghost.style.transform = `translate(${dx}px, ${e.clientY - dragging.startY}px)`;
 
-    // Reassign to ANY part: whichever speaker chip is under the pointer becomes
-    // the drop target. Ghost is pointer-events:none so it's skipped by the hit
-    // test; the speaker-add "+" has no data-person so it's ignored.
+    // Chip drop: whichever speaker chip is under the pointer wins.
     const under = document.elementFromPoint(e.clientX, e.clientY);
-    const chip = under && under.closest ? under.closest('.speaker-btn') : null;
-    const part = (chip && chip.dataset.person !== undefined) ? parseInt(chip.dataset.person, 10) : null;
+    const chip = under?.closest?.('.speaker-btn') ?? null;
+    const chipPart = (chip && chip.dataset.person !== undefined) ? parseInt(chip.dataset.person, 10) : null;
 
-    if (part !== dragging.targetPart) {
+    // Swipe preview: if no chip targeted, colour the ghost for the swipe target.
+    const previewPart = chipPart !== null ? chipPart : swipePerson(dx);
+
+    if (chipPart !== dragging.targetPart) {
       if (dragging.dropChip) dragging.dropChip.classList.remove('drop-target');
-      dragging.targetPart = part;
-      dragging.dropChip = part !== null ? chip : null;
-      if (part !== null) chip.classList.add('drop-target');
-      // Recolour the ghost to preview the destination part's tint.
-      dragging.ghost.style.setProperty('--pc',  part !== null ? palette(part).dot : dragging.origPc);
-      dragging.ghost.style.setProperty('--pbg', part !== null ? palette(part).bg  : dragging.origPbg);
+      dragging.targetPart = chipPart;
+      dragging.dropChip = chipPart !== null ? chip : null;
+      if (chipPart !== null) chip.classList.add('drop-target');
     }
+
+    // Keep ghost colour in sync with wherever the gesture would land.
+    const gc = previewPart !== null && previewPart >= 0 ? palette(previewPart) : null;
+    dragging.ghost.style.setProperty('--pc',  gc ? gc.dot : dragging.origPc);
+    dragging.ghost.style.setProperty('--pbg', gc ? gc.bg  : dragging.origPbg);
   }
 
   function onDragEnd(e) {
@@ -2823,18 +2847,14 @@
     if (dropChip) dropChip.classList.remove('drop-target');
 
     if (e.type !== 'pointercancel') {
-      if (targetPart != null && targetPart !== messages[msgIdx].person) {
-        // Dropped on a speaker chip → reassign to that chip's part.
-        reassignMessage(msgIdx, targetPart);
-      } else if (targetPart == null) {
-        // No chip target — use left/right swipe gesture.
-        // Drag left → left-side speaker (person 0); drag right → right-side (person 1).
-        const dx = e.clientX - startX;
-        const SWIPE = 60;
-        const cur = messages[msgIdx].person;
-        if (dx < -SWIPE && cur !== 0) reassignMessage(msgIdx, 0);
-        else if (dx > SWIPE && names.length > 1 && cur !== 1) reassignMessage(msgIdx, 1);
+      const cur = messages[msgIdx].person;
+      let dest = -1;
+      if (targetPart != null) {
+        dest = targetPart;                        // chip drop wins
+      } else {
+        dest = swipePerson(e.clientX - startX);  // fall back to swipe zones
       }
+      if (dest >= 0 && dest !== cur) reassignMessage(msgIdx, dest);
     }
 
     ghost.style.transition = 'opacity 0.18s ease, transform 0.18s ease';

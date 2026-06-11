@@ -1138,27 +1138,25 @@
     border-color: var(--ink);
   }
 
-  /* During a message drag, make all chips visually prominent so the user
-     knows to drag here. Drop-target chip gets an extra strong highlight. */
+  /* During a message drag, chips get a ring so the user knows to drag here.
+     No scale transform — scaling distorts the pill shape. */
   body.dragging-msg .speaker-btn {
     border-color: var(--ink-faint);
-    transform: scale(1.05) translateY(-1px);
-    transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.12s, box-shadow 0.12s;
+    box-shadow: 0 0 0 1.5px var(--ink-faint);
+    transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
   }
 
   body.dragging-msg .speaker-btn.drop-target {
     background: var(--ink);
     color: var(--paper);
     border-color: var(--ink);
-    transform: scale(1.12) translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.22);
   }
 
   /* Highlighted while a message is dragged over it (reassign drop target). */
   .speaker-btn.drop-target {
     border-color: var(--ink);
     box-shadow: 0 0 0 2px var(--ink-faint);
-    transform: translateY(-1px);
   }
 
   /* ── Sketch ── */
@@ -2821,12 +2819,22 @@
     document.removeEventListener('pointerup', onDragEnd);
     document.removeEventListener('pointercancel', onDragEnd);
 
-    const { wrap, ghost, msgIdx, targetPart, dropChip } = dragging;
+    const { wrap, ghost, msgIdx, targetPart, dropChip, startX } = dragging;
     if (dropChip) dropChip.classList.remove('drop-target');
 
-    // Dropped on a speaker chip for a different part → reassign.
-    if (e.type !== 'pointercancel' && targetPart != null && targetPart !== messages[msgIdx].person) {
-      reassignMessage(msgIdx, targetPart);
+    if (e.type !== 'pointercancel') {
+      if (targetPart != null && targetPart !== messages[msgIdx].person) {
+        // Dropped on a speaker chip → reassign to that chip's part.
+        reassignMessage(msgIdx, targetPart);
+      } else if (targetPart == null) {
+        // No chip target — use left/right swipe gesture.
+        // Drag left → left-side speaker (person 0); drag right → right-side (person 1).
+        const dx = e.clientX - startX;
+        const SWIPE = 60;
+        const cur = messages[msgIdx].person;
+        if (dx < -SWIPE && cur !== 0) reassignMessage(msgIdx, 0);
+        else if (dx > SWIPE && names.length > 1 && cur !== 1) reassignMessage(msgIdx, 1);
+      }
     }
 
     ghost.style.transition = 'opacity 0.18s ease, transform 0.18s ease';

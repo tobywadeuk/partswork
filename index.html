@@ -1549,6 +1549,56 @@
   const LEGACY_SESSION_KEY = 'partswork_session';
   const LEGACY_NOTES_KEY = 'partswork_notes';
 
+  // ── Storage drivers ──
+  // IndexedDB is the primary store: multi-GB quota and eviction-resistant once
+  // navigator.storage.persist() is granted. localStorage's ~5MB quota and
+  // silent eviction were the original data-loss culprits — it remains only as
+  // a fallback driver (Safari private mode can refuse IndexedDB) and as the
+  // read-only source for migrating pre-IndexedDB installs forward.
+  const idbDriver = (() => {
+    let dbp = null;
+    function open() {
+      if (!dbp) dbp = new Promise((res, rej) => {
+        const r = indexedDB.open('inner_dialogues', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('kv');
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      });
+      return dbp;
+    }
+    async function tx(mode, fn) {
+      const db = await open();
+      return new Promise((res, rej) => {
+        const t = db.transaction('kv', mode);
+        const req = fn(t.objectStore('kv'));
+        t.oncomplete = () => res(req.result);
+        t.onerror = () => rej(t.error);
+        t.onabort = () => rej(t.error);
+      });
+    }
+    return {
+      get: k => tx('readonly',  s => s.get(k)),
+      set: (k, v) => tx('readwrite', s => s.put(v, k)),
+    };
+  })();
+
+  // Fallback driver mapping the logical keys onto the original localStorage
+  // keys, so pre-IndexedDB data is read and written in place.
+  const LS_KEY_MAP = { state: STATE_KEY, backup: BACKUP_KEY };
+  const lsDriver = {
+    async get(k) {
+      const raw = localStorage.getItem(LS_KEY_MAP[k]);
+      return raw ? JSON.parse(raw) : undefined;
+    },
+    async set(k, v) { localStorage.setItem(LS_KEY_MAP[k], JSON.stringify(v)); },
+  };
+
+  let store = null;
+  const storeReady = (async () => {
+    try { await idbDriver.get('state'); store = idbDriver; }
+    catch (_) { store = lsDriver; }
+  })();
+
   const PALETTE = [
     { dot: '#7a6e62', bg: '#e8e0d4' },
     { dot: '#5a7a68', bg: '#dde8e0' },
@@ -1720,7 +1770,13 @@
     flushNoteFromTextarea();
   }
   notesArea.addEventListener('blur', flushPendingNoteSave);
-  window.addEventListener('beforeunload', flushPendingNoteSave);
+  // IndexedDB writes during teardown are best-effort; visibilitychange→hidden
+  // fires early enough for the async write to usually complete, and it's the
+  // only reliable lifecycle signal on iOS. pagehide covers desktop tab close.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingNoteSave();
+  });
+  window.addEventListener('pagehide', flushPendingNoteSave);
 
   renderNameFields();
 
@@ -2902,20 +2958,46 @@
     return 'note';
   }
 
+  // Persistence: in-memory `state` is the source of truth; storage is an async
+  // sink behind the driver. Writes are whole-state snapshots serialized on a
+  // promise chain (last-write-wins), so saveSession() stays synchronous for
+  // its many call sites.
+  let saveChain = Promise.resolve();
+  let saveDirty = false;
+  let persistAsked = false;
+
+  async function flushState() {
+    saveDirty = false;
+    await storeReady;
+    const snapshot = structuredClone(state);
+    await store.set('state', snapshot);
+    // Only overwrite backup when there are real sessions — never let an empty
+    // state clobber a good backup that the user hasn't had a chance to restore.
+    if (Object.keys(snapshot.sessions).length > 0) {
+      await store.set('backup', snapshot);
+    }
+    if (!persistAsked) {
+      persistAsked = true;
+      // Ask the browser to exempt this origin from storage-pressure eviction.
+      try { navigator.storage?.persist?.(); } catch (_) {}
+    }
+  }
+
+  function onSaveError(e) {
+    saveDirty = false;
+    console.error('[inner-dialogues] save failed:', e);
+  }
+
+  function persistState() {
+    if (saveDirty) return; // a flush is already queued; it will pick up this change
+    saveDirty = true;
+    saveChain = saveChain.then(flushState).catch(onSaveError);
+  }
+
   function saveSession() {
     const s = current();
     if (s) s.updatedAt = Date.now();
-    try {
-      const json = JSON.stringify(state);
-      localStorage.setItem(STATE_KEY, json);
-      // Only overwrite backup when there are real sessions — never let an empty
-      // state clobber a good backup that the user hasn't had a chance to restore.
-      if (sessionList().length > 0) {
-        localStorage.setItem(BACKUP_KEY, json);
-      }
-    } catch (e) {
-      console.error('[inner-dialogues] saveSession failed:', e);
-    }
+    persistState();
   }
 
   function migrateLegacy() {
@@ -2953,27 +3035,40 @@
     } catch (_) { return false; }
   }
 
-  // Read + parse + validate one stored state blob. Returns the parsed state
-  // or null. Shape: { sessions: {<id>: <object>, ...}, activeId: string|null }.
-  function readStateFromKey(key) {
+  // Shape check for a stored state blob (works for both structured-clone
+  // objects from IndexedDB and JSON-parsed legacy localStorage values).
+  // Valid shape: { sessions: {<id>: <object>, ...}, activeId: string|null }.
+  function validState(parsed) {
+    if (!parsed || typeof parsed !== 'object') return false;
+    if (!parsed.sessions || typeof parsed.sessions !== 'object' || Array.isArray(parsed.sessions)) return false;
+    const ids = Object.keys(parsed.sessions);
+    if (!ids.length) return false;
+    // Each session must at least be a non-null object
+    if (ids.some(id => !parsed.sessions[id] || typeof parsed.sessions[id] !== 'object')) return false;
+    return true;
+  }
+
+  // Read one logical key ('state' | 'backup') via the active driver.
+  async function readStoredState(key) {
+    await storeReady;
     try {
-      const raw = localStorage.getItem(key);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') return null;
-      if (!parsed.sessions || typeof parsed.sessions !== 'object' || Array.isArray(parsed.sessions)) return null;
-      const ids = Object.keys(parsed.sessions);
-      if (!ids.length) return null;
-      // Each session must at least be a non-null object
-      if (ids.some(id => !parsed.sessions[id] || typeof parsed.sessions[id] !== 'object')) return null;
-      return parsed;
+      const v = await store.get(key);
+      return validState(v) ? v : null;
     } catch (_) { return null; }
   }
 
-  // Load + normalize state from a storage key (primary by default; the backup
-  // restore path passes BACKUP_KEY so it gets identical normalization).
-  function loadStoredState(key = STATE_KEY) {
-    const parsed = readStateFromKey(key);
+  // Read a pre-IndexedDB blob straight from localStorage (migration source).
+  function readLegacyState(lsKey) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(lsKey) || 'null');
+      return validState(parsed) ? parsed : null;
+    } catch (_) { return null; }
+  }
+
+  // Adopt a validated state blob and normalize it. Every load path funnels
+  // through here so primary, backup, and migrated data all get the same
+  // normalization.
+  function applyState(parsed) {
     if (!parsed) return false;
     state = parsed;
     // Normalize each session's notes shape. Older sessions had `notes` as a
@@ -3066,9 +3161,15 @@
       active = 0;
       saveSession();
       // The user explicitly deleted their last dialogue — mirror the empty
-      // state to the backup too, or auto-restore would resurrect it on the
-      // next load. (saveSession deliberately never writes an empty backup.)
-      try { localStorage.setItem(BACKUP_KEY, JSON.stringify(state)); } catch (_) {}
+      // state into the backup and drop the pre-IndexedDB leftovers, or the
+      // boot fallback chain would resurrect old data on the next load.
+      // (flushState deliberately never writes an empty backup, so this write
+      // is chained directly; the chain keeps it ordered after the state flush.)
+      saveChain = saveChain.then(() => store.set('backup', structuredClone(state))).catch(onSaveError);
+      try {
+        localStorage.removeItem(STATE_KEY);
+        localStorage.removeItem(BACKUP_KEY);
+      } catch (_) {}
       // Drop back to setup
       msgsEl.innerHTML = '<div class="empty" id="empty-msg"><span class="empty-orb"></span>The conversation begins here.</div>';
       resetPromptBar();
@@ -3322,18 +3423,22 @@
     });
   }
 
-  function restoreSession() {
+  async function restoreSession() {
     try {
       migrateLegacy();
-      // Primary first; fall back to the rolling backup so sessions are never
-      // lost just because the primary key was evicted or corrupted. The backup
-      // goes through the same load path, so it gets identical normalization.
-      let fromBackup = false;
-      if (!loadStoredState()) fromBackup = loadStoredState(BACKUP_KEY);
-      if (current()) {
-        if (fromBackup) {
-          saveSession(); // re-establish the primary key from the recovered state
-          showToast('sessions restored from backup');
+      // Source order: IndexedDB primary, legacy localStorage primary (pre-IDB
+      // installs — migrated forward on first load), then the rolling backups.
+      // Backups exist so sessions are never lost just because the primary was
+      // evicted or corrupted; every source gets identical normalization.
+      let source = 'idb';
+      let loaded = applyState(await readStoredState('state'));
+      if (!loaded) { source = 'legacy';        loaded = applyState(readLegacyState(STATE_KEY)); }
+      if (!loaded) { source = 'backup';        loaded = applyState(await readStoredState('backup')); }
+      if (!loaded) { source = 'legacy-backup'; loaded = applyState(readLegacyState(BACKUP_KEY)); }
+      if (loaded && current()) {
+        if (source !== 'idb') {
+          persistState(); // migrate/recover into the primary store
+          if (source !== 'legacy') showToast('sessions restored from backup');
         }
         showApp();
         hydrateActiveSession();
@@ -3696,7 +3801,7 @@
   // touches notes, toasts, and theme helpers, and calling it any earlier can
   // hit a temporal-dead-zone crash that leaves the page half-initialized
   // (which looks exactly like "my conversations were wiped").
-  restoreSession();
+  (async () => { await restoreSession(); })();
 
 </script>
 </body>

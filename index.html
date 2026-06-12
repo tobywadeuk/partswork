@@ -393,7 +393,6 @@
   .tab.active .tab-close { opacity: 0.45; }
   .tab-close:hover { opacity: 1 !important; background: rgba(0,0,0,0.08); }
   .tab.active .tab-close:hover { background: rgba(255,255,255,0.18); }
-  .tab.pending-delete .tab-close { opacity: 1; }
   .tab.dragging { opacity: 0.35; }
   .tab.drag-over { box-shadow: -2px 0 0 var(--ink-muted); }
 
@@ -886,8 +885,7 @@
   }
   .msg-wrap.right     .msg-actions { right: auto; left: 8px; }
   .msg-wrap.mid-right .msg-actions { right: auto; left: 8px; }
-  .msg-wrap:hover .msg-actions,
-  .msg-wrap.pending-delete .msg-actions { opacity: 1; pointer-events: auto; }
+  .msg-wrap:hover .msg-actions { opacity: 1; pointer-events: auto; }
 
   .msg-action-btn {
     background: none;
@@ -1017,7 +1015,6 @@
   .note-tab.active .note-tab-close { opacity: 0.55; }
   .note-tab-close:hover { opacity: 1 !important; background: rgba(0,0,0,0.08); }
   .note-tab.active .note-tab-close:hover { background: rgba(255,255,255,0.18); }
-  .note-tab.pending-delete .note-tab-close { opacity: 1; }
 
   .note-tab-add {
     width: 100%;
@@ -1385,6 +1382,116 @@
   }
   .tour-next:hover { opacity: 0.85; }
 
+  /* Vertical pans stay native (scrolling the message list on touch);
+     horizontal movement is ours for drag-to-reassign. */
+  .msg-wrap { touch-action: pan-y; }
+
+  /* ── Undo toast ── */
+  #undo-toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    padding: 9px 18px;
+    border-radius: 20px;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 310;
+  }
+  #undo-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+  }
+  #undo-toast button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+    letter-spacing: inherit;
+    color: var(--paper);
+    text-decoration: underline;
+    padding: 0;
+  }
+
+  /* ── Archive ── */
+  #archive-list {
+    width: min(540px, 80vw);
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+  .archive-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 4px;
+    border-bottom: 1px solid var(--rule);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--ink);
+  }
+  .archive-row:last-child { border-bottom: none; }
+  .archive-row-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .archive-row-meta {
+    color: var(--ink-faint);
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+  .archive-row button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+    text-decoration: underline;
+    padding: 2px 0;
+    flex-shrink: 0;
+    transition: color 0.15s;
+  }
+  .archive-row button:hover { color: var(--ink); }
+  .archive-row button.archive-delete-btn:hover { color: #b84a38; }
+  .archive-empty {
+    padding: 24px 4px;
+    font-family: 'Lora', Georgia, serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--ink-faint);
+    text-align: center;
+  }
+  .tab-archive-btn {
+    border: none;
+    background: none;
+    color: var(--ink-faint);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    transition: color 0.15s, background 0.15s;
+  }
+  .tab-archive-btn:hover { color: var(--ink-muted); background: rgba(0,0,0,0.05); }
+
   /* Responsive */
   @media (max-width: 880px) {
     #notes-panel { display: none !important; }
@@ -1418,6 +1525,7 @@
     <div class="setup-actions">
       <button class="start-btn" onclick="startChat()">Begin →</button>
       <button class="load-convo-btn" id="load-convo-btn">load conversation</button>
+      <button class="load-convo-btn" id="setup-archive-btn" style="display:none">archived dialogues</button>
     </div>
     <input type="file" id="load-convo-file" accept=".txt" hidden />
   </div>
@@ -1540,6 +1648,19 @@
   </div>
 </div>
 
+<div id="archive-panel" class="parts-map-overlay">
+  <div class="parts-map-panel">
+    <button class="parts-map-close" type="button" title="close">×</button>
+    <div class="parts-map-title">archived dialogues</div>
+    <div id="archive-list"></div>
+  </div>
+</div>
+
+<div id="undo-toast">
+  <span id="undo-toast-label"></span>
+  <button id="undo-toast-btn" type="button">undo</button>
+</div>
+
 
 <script>
   const MAX_PEOPLE = 4;
@@ -1627,8 +1748,8 @@
   let active = 0;
   let messages = [];
   let dragging = null;
-  let pendingDelete = null;
-  let state = { activeId: null, sessions: {} };
+  let pendingUndo = null;   // { undo, timer } — at most one offer at a time
+  let state = { activeId: null, sessions: {}, archived: {} };
 
   let sketchMode = false;
   let sketchPainting = false;
@@ -1835,33 +1956,116 @@
   document.getElementById('prompt-clear').addEventListener('click', resetPromptBar);
 
   // ── Load conversation ──
+  // Parses the same format sessionToText writes, so export → import round-trips:
+  // "Name: text" lines (with continuation lines for multiline messages),
+  // "    ✦ comment" lines (continuations indented 6 spaces), a Notes section
+  // (multiple notes split on \n\n---\n\n), and ═-rules between sessions.
+  function parseConversationText(text) {
+    const sessions = [];
+    let cur = null;
+    let mode = 'body';            // 'body' | 'notes'
+    let lastMsg = null;
+    let lastWasComment = false;
+    let pendingNotesHeader = false;
+    let notesBuf = [];
+
+    function newSession() {
+      cur = { names: [], messages: [], notes: [], skipped: 0 };
+      sessions.push(cur);
+      mode = 'body'; lastMsg = null; lastWasComment = false;
+      pendingNotesHeader = false; notesBuf = [];
+    }
+    function finishNotes() {
+      const joined = notesBuf.join('\n').trim();
+      if (!joined) return;
+      const now = Date.now();
+      cur.notes = joined.split(/\n\n---\n\n/)
+        .map(b => b.trim()).filter(Boolean)
+        .map(b => ({ id: genId(), content: b, createdAt: now, updatedAt: now }));
+    }
+
+    newSession();
+    for (const line of String(text).split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (/^═{8,}$/.test(trimmed)) { finishNotes(); newSession(); continue; }
+      if (/^—{8,}$/.test(trimmed)) {
+        if (pendingNotesHeader) { mode = 'notes'; pendingNotesHeader = false; }
+        continue;                  // otherwise decorative (title underline etc.)
+      }
+      if (mode === 'notes') { notesBuf.push(line); continue; }
+      if (trimmed === 'Notes') { pendingNotesHeader = true; continue; }
+
+      const cm = line.match(/^ {2,}✦ ?(.*)$/);
+      if (cm && lastMsg) { lastMsg.comment = cm[1]; lastWasComment = true; continue; }
+      if (lastWasComment && lastMsg && /^ {6}/.test(line)) {
+        lastMsg.comment += '\n' + line.slice(6);
+        continue;
+      }
+
+      const mm = line.match(/^(.{1,28}?): (.*)$/);
+      if (mm) {
+        const [, name, t] = mm;
+        let idx = cur.names.indexOf(name);
+        if (idx < 0) {
+          if (cur.names.length < MAX_PEOPLE) { cur.names.push(name); idx = cur.names.length - 1; }
+          else { cur.skipped++; lastMsg = null; lastWasComment = false; continue; }
+        }
+        lastMsg = { person: idx, text: t, comment: '' };
+        cur.messages.push(lastMsg);
+        lastWasComment = false;
+        continue;
+      }
+
+      if (!trimmed) { lastWasComment = false; continue; }
+      if (trimmed === '(empty)') continue;
+      // Non-blank, non-matching: a continuation of a multiline message.
+      // (Lines before the first message — the title — fall through and are ignored.)
+      if (lastMsg && !lastWasComment) lastMsg.text += '\n' + line;
+    }
+    finishNotes();
+    return sessions.filter(s => s.messages.length || s.notes.length);
+  }
+
+  function importSession(p) {
+    const id = genId();
+    const now = Date.now();
+    const notes = p.notes.length ? p.notes
+      : [{ id: genId(), content: '', createdAt: now, updatedAt: now }];
+    state.sessions[id] = {
+      id,
+      names: p.names.length ? p.names : [`${placeholderTerm} 1`, `${placeholderTerm} 2`],
+      messages: p.messages.map(m => ({ person: m.person, text: m.text, comment: m.comment || '' })),
+      notes,
+      activeNoteId: notes[0].id,
+      createdAt: now,
+      updatedAt: now,
+    };
+    return id;
+  }
+
   function loadConversationFile(file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      const lines = ev.target.result.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      const nameOrder = [];
-      const parsed = [];
-
-      for (const line of lines) {
-        const m = line.match(/^(.+?):\s+(.+)$/);
-        if (!m) continue;
-        const [, name, text] = m;
-        if (!nameOrder.includes(name) && nameOrder.length < MAX_PEOPLE) nameOrder.push(name);
-        if (nameOrder.includes(name)) {
-          parsed.push({ person: nameOrder.indexOf(name), text });
-        }
+      const parsedSessions = parseConversationText(ev.target.result);
+      if (!parsedSessions.length) { showToast('nothing readable in that file'); return; }
+      const free = MAX_SESSIONS - sessionList().length;
+      if (free <= 0) { showToast('4 dialogues open — close one first'); return; }
+      const toImport = parsedSessions.slice(0, free);
+      let firstId = null;
+      let skipped = 0;
+      for (const p of toImport) {
+        const id = importSession(p);
+        if (!firstId) firstId = id;
+        skipped += p.skipped;
       }
-
-      if (parsed.length === 0) return;
-
-      setupCount = nameOrder.length;
-      renderNameFields();
-
-      const inputs = document.querySelectorAll('#name-fields input');
-      nameOrder.forEach((name, i) => { if (inputs[i]) inputs[i].value = name; });
-
-      startChat(parsed);
+      state.activeId = firstId;
+      saveSession();
+      showApp();
+      hydrateActiveSession();
+      const dropped = parsedSessions.length - toImport.length;
+      if (dropped > 0) showToast(`imported ${toImport.length} — ${dropped} didn't fit (4 max)`);
+      else if (skipped > 0) showToast(`skipped ${skipped} lines from extra speakers`);
     };
     reader.readAsText(file);
   }
@@ -1927,7 +2131,9 @@
     const body  = (sMessages || []).map(m => {
       const speaker = sNames[m.person] || `Part ${m.person + 1}`;
       const line = m.type === 'sketch' ? `${speaker}: [sketch]` : `${speaker}: ${m.text}`;
-      return m.comment ? `${line}\n    ✦ ${m.comment}` : line;
+      // Comment continuation lines are indented 6 spaces so the importer can
+      // tell them apart from message-text continuation lines (0 indent).
+      return m.comment ? `${line}\n    ✦ ${String(m.comment).split('\n').join('\n      ')}` : line;
     }).join('\n\n');
     const notesText = notesAsText(notes);
     const notesSection = notesText ? `\n\n${rule}\nNotes\n${rule}\n\n${notesText}` : '';
@@ -2312,7 +2518,7 @@
 
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
-    const delBtn = makeActionBtn(ICON_DELETE, 'Delete', () => requestDeleteMessage(wrap, delBtn));
+    const delBtn = makeActionBtn(ICON_DELETE, 'Delete', () => deleteMessage(msgIdxOf(wrap)));
 
     if (m.type === 'sketch') {
       bubble.style.padding = '0';
@@ -2356,21 +2562,12 @@
     if (e.key === 'Enter') sendMsg();
   });
 
-  function startChat(loadedMessages) {
+  function startChat() {
     const inputs = document.querySelectorAll('#name-fields input');
     const inputNames = Array.from(inputs).map((el, i) => el.value.trim() || `${placeholderTerm} ${i + 1}`);
     if (!createSession(inputNames)) return;
     showApp();
     hydrateActiveSession();
-
-    if (loadedMessages && loadedMessages.length > 0) {
-      const empty = document.getElementById('empty-msg');
-      if (empty) empty.remove();
-      for (const m of loadedMessages) appendMsg({ person: m.person, text: m.text, comment: '' }, { animate: false, save: false });
-      saveSession();
-      scrollMessagesToBottomWhenSettled();
-    }
-
     msgInputEl.focus();
   }
 
@@ -2561,9 +2758,7 @@
 
   function resetAll() {
     if (!current()) return;
-    if (!confirm('Clear this dialogue?')) return;
-    if (pendingDelete) pendingDelete.cancel();
-    deleteSession(state.activeId);
+    archiveSession(state.activeId);
   }
 
   // Cmd+digit switches speakers, Alt+digit switches session tabs.
@@ -2662,72 +2857,61 @@
     input.addEventListener('pointerdown', e => e.stopPropagation());
   }
 
-  // Two-phase delete: first click marks the button red, then either:
-  //   - clicking the SAME button again confirms (most reliable path)
-  //   - pressing Enter confirms (when keyboard is available)
-  //   - clicking anywhere else, or pressing Escape, cancels
-  // Second-click-to-confirm doesn't rely on focus, which is unreliable on
-  // span-based close buttons (tab × elements).
-  function startPendingDelete({ button, wrap, confirmTitle, onConfirm }) {
-    // Second click on the same button = confirm
-    if (pendingDelete && pendingDelete.delBtn === button) {
-      pendingDelete.confirm();
-      return;
-    }
-    if (pendingDelete) pendingDelete.cancel();
-
-    const originalTitle = button.title;
-    if (wrap) wrap.classList.add('pending-delete');
-    button.style.color = '#b84a38';
-    button.title = confirmTitle;
-    // Best-effort focus shift so keyboard Enter works too (not relied on)
-    const focused = document.activeElement;
-    if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA') && focused.blur) {
-      focused.blur();
-    }
-    try { button.focus({ preventScroll: true }); } catch (_) { button.focus(); }
-
-    function confirm() { cleanup(); onConfirm(); }
-    function cancel() { cleanup(); }
-    function cleanup() {
-      pendingDelete = null;
-      if (wrap) wrap.classList.remove('pending-delete');
-      button.style.color = '';
-      button.title = originalTitle;
-      document.removeEventListener('keydown', onKey, true);
-      document.removeEventListener('pointerdown', onOutside, true);
-    }
-    function onKey(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        confirm();
-      }
-      if (e.key === 'Escape') {
-        e.stopImmediatePropagation();
-        cancel();
-      }
-    }
-    function onOutside(e) {
-      if (!button.contains(e.target)) cancel();
-    }
-    document.addEventListener('keydown', onKey, true);
-    document.addEventListener('pointerdown', onOutside, true);
-    pendingDelete = { confirm, cancel, delBtn: button };
+  // ── Undo ──
+  // Deletes apply immediately and offer a 6-second undo instead of asking for
+  // confirmation. Only one offer lives at a time — a newer delete commits the
+  // previous one. Undo closures capture direct object references (not indexes
+  // into `current()`), so they stay correct even if the user switches or
+  // archives sessions inside the window.
+  function showUndoToast(label) {
+    document.getElementById('undo-toast-label').textContent = label;
+    document.getElementById('undo-toast').classList.add('visible');
   }
-
-  function requestDeleteMessage(wrap, delBtn) {
-    startPendingDelete({
-      button: delBtn,
-      wrap,
-      confirmTitle: 'Click again or press Enter to delete',
-      onConfirm: () => deleteMessage(parseInt(wrap.dataset.msgIdx, 10)),
-    });
+  function hideUndoToast() {
+    document.getElementById('undo-toast').classList.remove('visible');
   }
+  function commitPendingUndo() {
+    if (!pendingUndo) return;
+    clearTimeout(pendingUndo.timer);
+    pendingUndo = null;
+    hideUndoToast();
+  }
+  function runUndo() {
+    if (!pendingUndo) return;
+    clearTimeout(pendingUndo.timer);
+    const undo = pendingUndo.undo;
+    pendingUndo = null;
+    hideUndoToast();
+    undo();
+  }
+  function offerUndo(label, undoFn, ms = 6000) {
+    commitPendingUndo();
+    pendingUndo = { undo: undoFn, timer: setTimeout(commitPendingUndo, ms) };
+    showUndoToast(label);
+  }
+  document.getElementById('undo-toast-btn').addEventListener('click', runUndo);
+  // Cmd/Ctrl+Z runs the pending undo — but never steals it from text editing.
+  document.addEventListener('keydown', e => {
+    if (!pendingUndo || !(e.metaKey || e.ctrlKey) || e.code !== 'KeyZ' || e.shiftKey) return;
+    const t = e.target;
+    if (t.closest?.('input, textarea, [contenteditable="true"]')) return;
+    e.preventDefault();
+    runUndo();
+  });
 
   function deleteMessage(msgIdx) {
+    const snapshot = messages[msgIdx];
+    if (!snapshot) return;
+    const arr = messages;   // direct reference — survives session switches
     messages.splice(msgIdx, 1);
     saveSession();
+    offerUndo('message deleted', () => {
+      arr.splice(Math.min(msgIdx, arr.length), 0, snapshot);
+      saveSession();
+      if (messages === arr) {
+        hydrateActiveSession();
+      }
+    });
     const wrap = document.querySelector(`[data-msg-idx="${msgIdx}"]`);
     if (!wrap) return;
     // Reindex DOM immediately so rapid deletes can't desync — only the fade-out
@@ -2746,16 +2930,47 @@
     setTimeout(() => wrap.remove(), 200);
   }
 
+  // Drag starts in a tracking-only phase: we watch movement without claiming
+  // the gesture, so a vertical swipe on touch stays a native scroll (paired
+  // with `touch-action: pan-y` on .msg-wrap). Only a clearly horizontal move
+  // claims the drag and builds the ghost.
   function startDrag(e) {
     if (e.button !== 0) return;
     if (e.target.closest('.msg-actions')) return;
-    if (pendingDelete) pendingDelete.cancel();
-    e.preventDefault();
-    const wrap = e.currentTarget;
+    if (e.target.closest('[contenteditable="true"], .msg-comment-input')) return;
+    // Mouse: stop text-selection from starting under the drag. Touch keeps its
+    // default so the browser can begin a scroll if the move turns out vertical.
+    if (e.pointerType === 'mouse') e.preventDefault();
+
+    dragging = {
+      wrap: e.currentTarget,
+      startX: e.clientX,
+      startY: e.clientY,
+      claimed: false,
+      targetPart: null,
+      dropChip: null,
+      previewPart: undefined,
+    };
+    document.addEventListener('pointermove', onDragMove);
+    document.addEventListener('pointerup', onDragEnd);
+    document.addEventListener('pointercancel', onDragEnd);
+  }
+
+  function cancelDragTracking() {
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup', onDragEnd);
+    document.removeEventListener('pointercancel', onDragEnd);
+    dragging = null;
+  }
+
+  // Builds the ghost and visual drag state once the gesture is claimed.
+  function beginDragVisuals() {
+    const wrap = dragging.wrap;
     const msgIdx = parseInt(wrap.dataset.msgIdx, 10);
+    const m = messages[msgIdx];
+    if (!m) { cancelDragTracking(); return false; }   // wrap is mid-delete fade
     const bubble = wrap.querySelector('.msg-bubble');
     const rect = bubble.getBoundingClientRect();
-    const m = messages[msgIdx];
     const origPc = palette(m.person).dot;
     const origPbg = palette(m.person).bg;
 
@@ -2791,14 +3006,16 @@
 
     // Snapshot chip rects once — chips don't move during a drag, and measuring
     // them on every pointermove forces a layout pass per event.
-    const chipRects = Array.from(document.querySelectorAll('.speaker-btn[data-person]'))
+    dragging.chipRects = Array.from(document.querySelectorAll('.speaker-btn[data-person]'))
       .map(btn => ({ btn, r: btn.getBoundingClientRect() }));
 
-    dragging = { wrap, ghost, msgIdx, origPc, origPbg, startX: e.clientX, startY: e.clientY, targetPart: null, dropChip: null, chipRects, previewPart: undefined };
+    dragging.claimed = true;
+    dragging.msgIdx = msgIdx;
+    dragging.ghost = ghost;
+    dragging.origPc = origPc;
+    dragging.origPbg = origPbg;
     document.body.classList.add('dragging-msg');
-    document.addEventListener('pointermove', onDragMove);
-    document.addEventListener('pointerup', onDragEnd);
-    document.addEventListener('pointercancel', onDragEnd);
+    return true;
   }
 
   // Maps drag deltas to a person index based on the current layout.
@@ -2839,6 +3056,15 @@
     if (!dragging) return;
     const dx = e.clientX - dragging.startX;
     const dy = e.clientY - dragging.startY;
+
+    if (!dragging.claimed) {
+      // Vertical intent → release the gesture to native scrolling.
+      if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx) * 1.2) { cancelDragTracking(); return; }
+      // Horizontal intent → claim it and start the visual drag.
+      if (!(Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5)) return;
+      if (!beginDragVisuals()) return;
+    }
+
     dragging.ghost.style.transform = `translate(${dx}px, ${dy}px)`;
 
     // Chip drop: whichever speaker chip is near the pointer wins.
@@ -2868,6 +3094,7 @@
 
   function onDragEnd(e) {
     if (!dragging) return;
+    if (!dragging.claimed) { cancelDragTracking(); return; }   // tap / plain click
     document.removeEventListener('pointermove', onDragMove);
     document.removeEventListener('pointerup', onDragEnd);
     document.removeEventListener('pointercancel', onDragEnd);
@@ -2971,9 +3198,9 @@
     await storeReady;
     const snapshot = structuredClone(state);
     await store.set('state', snapshot);
-    // Only overwrite backup when there are real sessions — never let an empty
-    // state clobber a good backup that the user hasn't had a chance to restore.
-    if (Object.keys(snapshot.sessions).length > 0) {
+    // Only overwrite backup when there is real data (open or archived) — never
+    // let an empty state clobber a good backup the user hasn't restored yet.
+    if (Object.keys(snapshot.sessions).length > 0 || Object.keys(snapshot.archived || {}).length > 0) {
       await store.set('backup', snapshot);
     }
     if (!persistAsked) {
@@ -3041,10 +3268,14 @@
   function validState(parsed) {
     if (!parsed || typeof parsed !== 'object') return false;
     if (!parsed.sessions || typeof parsed.sessions !== 'object' || Array.isArray(parsed.sessions)) return false;
-    const ids = Object.keys(parsed.sessions);
-    if (!ids.length) return false;
-    // Each session must at least be a non-null object
-    if (ids.some(id => !parsed.sessions[id] || typeof parsed.sessions[id] !== 'object')) return false;
+    if (parsed.archived !== undefined && (!parsed.archived || typeof parsed.archived !== 'object' || Array.isArray(parsed.archived))) return false;
+    const open = Object.keys(parsed.sessions);
+    const arch = Object.keys(parsed.archived || {});
+    // Some data must exist somewhere — a state with only archived dialogues is valid.
+    if (!open.length && !arch.length) return false;
+    // Each entry must at least be a non-null object
+    if (open.some(id => !parsed.sessions[id] || typeof parsed.sessions[id] !== 'object')) return false;
+    if (arch.some(id => !parsed.archived[id] || typeof parsed.archived[id] !== 'object')) return false;
     return true;
   }
 
@@ -3068,33 +3299,36 @@
   // Adopt a validated state blob and normalize it. Every load path funnels
   // through here so primary, backup, and migrated data all get the same
   // normalization.
+  // Normalize one session's notes shape. Older sessions had `notes` as a
+  // single string; the new shape is an array of note objects with an
+  // `activeNoteId` pointer. Always ensures at least one note exists.
+  function normalizeSession(s) {
+    if (typeof s.notes === 'string') {
+      const noteId = genId();
+      const now = s.updatedAt || Date.now();
+      s.notes = [{ id: noteId, content: s.notes, createdAt: now, updatedAt: now }];
+      s.activeNoteId = noteId;
+    } else if (!Array.isArray(s.notes)) {
+      s.notes = [];
+      s.activeNoteId = null;
+    }
+    if (s.notes.length === 0) {
+      const noteId = genId();
+      const now = Date.now();
+      s.notes = [{ id: noteId, content: '', createdAt: now, updatedAt: now }];
+      s.activeNoteId = noteId;
+    }
+    if (!s.activeNoteId || !s.notes.find(n => n.id === s.activeNoteId)) {
+      s.activeNoteId = s.notes[0].id;
+    }
+  }
+
   function applyState(parsed) {
     if (!parsed) return false;
     state = parsed;
-    // Normalize each session's notes shape. Older sessions had `notes` as a
-    // single string; the new shape is an array of note objects with an
-    // `activeNoteId` pointer. Always ensure at least one note exists.
-    for (const sid in state.sessions) {
-      const s = state.sessions[sid];
-      if (typeof s.notes === 'string') {
-        const noteId = genId();
-        const now = s.updatedAt || Date.now();
-        s.notes = [{ id: noteId, content: s.notes, createdAt: now, updatedAt: now }];
-        s.activeNoteId = noteId;
-      } else if (!Array.isArray(s.notes)) {
-        s.notes = [];
-        s.activeNoteId = null;
-      }
-      if (s.notes.length === 0) {
-        const noteId = genId();
-        const now = Date.now();
-        s.notes = [{ id: noteId, content: '', createdAt: now, updatedAt: now }];
-        s.activeNoteId = noteId;
-      }
-      if (!s.activeNoteId || !s.notes.find(n => n.id === s.activeNoteId)) {
-        s.activeNoteId = s.notes[0].id;
-      }
-    }
+    state.archived ||= {};
+    for (const sid in state.sessions) normalizeSession(state.sessions[sid]);
+    for (const sid in state.archived) normalizeSession(state.archived[sid]);
     if (!state.sessions[state.activeId]) {
       const validIds = sessionList();
       state.activeId = validIds[validIds.length - 1] || null;
@@ -3141,36 +3375,32 @@
 
   function switchToSession(id) {
     if (id === state.activeId || !state.sessions[id]) return;
-    if (pendingDelete) pendingDelete.cancel();
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     state.activeId = id;
     saveSession();
     hydrateActiveSession();
   }
 
-  function deleteSession(id) {
-    if (!state.sessions[id]) return;
-    const wasActive = state.activeId === id;
-    delete state.sessions[id];
+  // Rebuild an ordered map with `id` inserted at `position` (JS objects keep
+  // insertion order, which is what tab order and archive order rely on).
+  function insertSessionAt(map, id, session, position) {
+    const ids = Object.keys(map);
+    ids.splice(Math.min(position, ids.length), 0, id);
+    const out = {};
+    for (const k of ids) out[k] = k === id ? session : map[k];
+    return out;
+  }
+
+  // Shared tail for removing a session from the open set (archive/unarchive
+  // bookkeeping): fix activeId, persist, and re-render or drop to setup.
+  function afterOpenSessionRemoved(wasActive) {
     const ids = sessionList();
     if (ids.length === 0) {
       state.activeId = null;
-      // Reset in-memory state that pointed to the deleted session
       names = [];
       messages = [];
       active = 0;
       saveSession();
-      // The user explicitly deleted their last dialogue — mirror the empty
-      // state into the backup and drop the pre-IndexedDB leftovers, or the
-      // boot fallback chain would resurrect old data on the next load.
-      // (flushState deliberately never writes an empty backup, so this write
-      // is chained directly; the chain keeps it ordered after the state flush.)
-      saveChain = saveChain.then(() => store.set('backup', structuredClone(state))).catch(onSaveError);
-      try {
-        localStorage.removeItem(STATE_KEY);
-        localStorage.removeItem(BACKUP_KEY);
-      } catch (_) {}
-      // Drop back to setup
       msgsEl.innerHTML = '<div class="empty" id="empty-msg"><span class="empty-orb"></span>The conversation begins here.</div>';
       resetPromptBar();
       notesArea.value = '';
@@ -3185,6 +3415,137 @@
       saveSession();
       renderTabs();
     }
+  }
+
+  // Closing a tab archives the dialogue — non-destructive, instant, undoable.
+  // Real deletion only exists inside the archive panel.
+  function archiveSession(id) {
+    const session = state.sessions[id];
+    if (!session) return;
+    const position = sessionList().indexOf(id);
+    const wasActive = state.activeId === id;
+    const prevActiveId = state.activeId;
+    delete state.sessions[id];
+    state.archived[id] = session;
+    afterOpenSessionRemoved(wasActive);
+    updateSetupArchiveLink();
+    offerUndo('dialogue archived', () => {
+      delete state.archived[id];
+      state.sessions = insertSessionAt(state.sessions, id, session, position);
+      state.activeId = prevActiveId;
+      saveSession();
+      showApp();              // reverses a possible drop-to-setup
+      hydrateActiveSession();
+      updateSetupArchiveLink();
+    });
+  }
+
+  function unarchiveSession(id) {
+    const session = state.archived[id];
+    if (!session) return;
+    if (sessionList().length >= MAX_SESSIONS) {
+      showToast('4 dialogues open — close one first');
+      return;
+    }
+    delete state.archived[id];
+    state.sessions[id] = session;
+    state.activeId = id;
+    saveSession();
+    closeArchivePanel();
+    updateSetupArchiveLink();
+    showApp();
+    hydrateActiveSession();
+  }
+
+  function deleteArchivedSession(id) {
+    const session = state.archived[id];
+    if (!session) return;
+    const position = Object.keys(state.archived).indexOf(id);
+    delete state.archived[id];
+    saveSession();
+    // Truly empty now? Mirror the empty state into the backup and drop the
+    // pre-IndexedDB leftovers, or the boot fallback chain would resurrect
+    // deliberately deleted data on the next load. (flushState never writes an
+    // empty backup itself; chaining keeps this ordered after the state flush.)
+    if (sessionList().length === 0 && Object.keys(state.archived).length === 0) {
+      saveChain = saveChain.then(() => store.set('backup', structuredClone(state))).catch(onSaveError);
+      try {
+        localStorage.removeItem(STATE_KEY);
+        localStorage.removeItem(BACKUP_KEY);
+      } catch (_) {}
+    }
+    renderArchivePanel();
+    renderTabs();
+    updateSetupArchiveLink();
+    offerUndo('dialogue deleted', () => {
+      state.archived = insertSessionAt(state.archived, id, session, position);
+      saveSession();
+      renderArchivePanel();
+      renderTabs();
+      updateSetupArchiveLink();
+    });
+  }
+
+  // ── Archive panel ──
+  function openArchivePanel() {
+    renderArchivePanel();
+    document.getElementById('archive-panel').classList.add('visible');
+  }
+  function closeArchivePanel() {
+    document.getElementById('archive-panel').classList.remove('visible');
+  }
+  document.querySelector('#archive-panel .parts-map-close').addEventListener('click', closeArchivePanel);
+  document.getElementById('archive-panel').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeArchivePanel();
+  });
+  document.getElementById('setup-archive-btn').addEventListener('click', openArchivePanel);
+
+  function renderArchivePanel() {
+    const list = document.getElementById('archive-list');
+    list.innerHTML = '';
+    const ids = Object.keys(state.archived);
+    if (!ids.length) {
+      const empty = document.createElement('div');
+      empty.className = 'archive-empty';
+      empty.textContent = 'nothing archived — closing a dialogue puts it here';
+      list.appendChild(empty);
+      return;
+    }
+    for (const id of ids) {
+      const s = state.archived[id];
+      const row = document.createElement('div');
+      row.className = 'archive-row';
+
+      const label = document.createElement('span');
+      label.className = 'archive-row-label';
+      label.textContent = tabLabel(s);
+      label.title = tabLabel(s);
+
+      const meta = document.createElement('span');
+      meta.className = 'archive-row-meta';
+      meta.textContent = `${(s.messages || []).length} messages`;
+
+      const restoreBtn = document.createElement('button');
+      restoreBtn.textContent = 'restore';
+      restoreBtn.addEventListener('click', () => unarchiveSession(id));
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'archive-delete-btn';
+      delBtn.textContent = 'delete';
+      delBtn.title = 'Delete permanently (undo offered)';
+      delBtn.addEventListener('click', () => deleteArchivedSession(id));
+
+      row.append(label, meta, restoreBtn, delBtn);
+      list.appendChild(row);
+    }
+  }
+
+  // The setup screen has no tab strip, so it gets its own way into the archive.
+  function updateSetupArchiveLink() {
+    const btn = document.getElementById('setup-archive-btn');
+    const n = Object.keys(state.archived || {}).length;
+    btn.style.display = n ? '' : 'none';
+    btn.textContent = n ? `archived dialogues (${n})` : 'archived dialogues';
   }
 
   function hydrateActiveSession() {
@@ -3231,7 +3592,6 @@
   }
 
   function goToSetup({ allowBack = false } = {}) {
-    if (pendingDelete) pendingDelete.cancel();
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     toggleSketchMode(false);
     hideApp();
@@ -3245,8 +3605,9 @@
     if (!strip) return;
     strip.innerHTML = '';
     const ids = sessionList();
-    // Toggle body class so the parts-map button only shows with 2+ sessions
-    document.body.classList.toggle('has-multi-session', ids.length > 1);
+    // Toggle body class so the parts-map button only shows with 2+ dialogues
+    // (open or archived — the map draws from both).
+    document.body.classList.toggle('has-multi-session', ids.length + Object.keys(state.archived || {}).length > 1);
     if (ids.length === 0) {
       strip.style.display = 'none';
       return;
@@ -3267,15 +3628,11 @@
       const close = document.createElement('span');
       close.className = 'tab-close';
       close.textContent = '×';
-      close.title = 'Close this dialogue';
-      // tabindex makes the span programmatically focusable so startPendingDelete's
-      // focus() actually works — otherwise Enter is captured by whatever input
-      // was previously focused.
-      close.tabIndex = -1;
+      close.title = 'Archive this dialogue';
       close.addEventListener('pointerdown', e => e.stopPropagation());
       close.addEventListener('click', e => {
         e.stopPropagation();
-        requestDeleteSession(id, close);
+        archiveSession(id);
       });
 
       // Drag to reorder
@@ -3307,23 +3664,31 @@
       strip.appendChild(tab);
     });
 
-    if (ids.length < MAX_SESSIONS) {
-      const addBtn = document.createElement('button');
-      addBtn.className = 'tab-add';
-      addBtn.textContent = '+';
-      addBtn.title = 'New dialogue';
-      addBtn.addEventListener('click', () => goToSetup({ allowBack: true }));
-      strip.appendChild(addBtn);
-    }
-  }
-
-  function requestDeleteSession(id, closeBtn) {
-    startPendingDelete({
-      button: closeBtn,
-      wrap: closeBtn.parentElement,
-      confirmTitle: 'Click again or press Enter to close this dialogue',
-      onConfirm: () => deleteSession(id),
+    // "+" stays visible at the cap — clicking it then opens the archive with a
+    // hint, which is how users discover dialogues live past the 4 open slots.
+    const addBtn = document.createElement('button');
+    addBtn.className = 'tab-add';
+    addBtn.textContent = '+';
+    addBtn.title = 'New dialogue';
+    addBtn.addEventListener('click', () => {
+      if (sessionList().length >= MAX_SESSIONS) {
+        openArchivePanel();
+        showToast('4 dialogues open — archive or delete one first');
+      } else {
+        goToSetup({ allowBack: true });
+      }
     });
+    strip.appendChild(addBtn);
+
+    const archN = Object.keys(state.archived || {}).length;
+    if (archN > 0) {
+      const archBtn = document.createElement('button');
+      archBtn.className = 'tab-archive-btn';
+      archBtn.textContent = `archive (${archN})`;
+      archBtn.title = 'Archived dialogues';
+      archBtn.addEventListener('click', openArchivePanel);
+      strip.appendChild(archBtn);
+    }
   }
 
   function renderNoteTabs() {
@@ -3356,7 +3721,7 @@
         close.addEventListener('pointerdown', e => e.stopPropagation());
         close.addEventListener('click', e => {
           e.stopPropagation();
-          requestDeleteNote(note.id, close);
+          deleteNote(note.id);
         });
         tab.appendChild(close);
       }
@@ -3376,7 +3741,6 @@
   function createNote() {
     const session = current();
     if (!session) return;
-    if (pendingDelete) pendingDelete.cancel();
     const noteId = genId();
     const now = Date.now();
     session.notes.push({ id: noteId, content: '', createdAt: now, updatedAt: now });
@@ -3392,7 +3756,6 @@
     if (!session || session.activeNoteId === id) return;
     const note = session.notes.find(n => n.id === id);
     if (!note) return;
-    if (pendingDelete) pendingDelete.cancel();
     session.activeNoteId = id;
     saveSession();
     notesArea.value = note.content;
@@ -3404,22 +3767,25 @@
     if (!session || session.notes.length <= 1) return;
     const idx = session.notes.findIndex(n => n.id === id);
     if (idx < 0) return;
+    const snapshot = session.notes[idx];
+    const wasActiveNote = session.activeNoteId === id;
+    const target = session;   // direct reference — survives session switches
     session.notes.splice(idx, 1);
-    if (session.activeNoteId === id) {
+    if (wasActiveNote) {
       session.activeNoteId = session.notes[Math.max(0, idx - 1)].id;
     }
     const note = session.notes.find(n => n.id === session.activeNoteId);
     notesArea.value = note?.content || '';
     saveSession();
     renderNoteTabs();
-  }
-
-  function requestDeleteNote(id, closeBtn) {
-    startPendingDelete({
-      button: closeBtn,
-      wrap: closeBtn.parentElement,
-      confirmTitle: 'Click again or press Enter to delete this note',
-      onConfirm: () => deleteNote(id),
+    offerUndo('note deleted', () => {
+      target.notes.splice(Math.min(idx, target.notes.length), 0, snapshot);
+      if (wasActiveNote) target.activeNoteId = snapshot.id;
+      saveSession();
+      if (current() === target) {
+        notesArea.value = target.notes.find(n => n.id === target.activeNoteId)?.content || '';
+        renderNoteTabs();
+      }
     });
   }
 
@@ -3569,8 +3935,8 @@
     const partsByName = new Map(); // name → { name, color }
     const connections = new Set(); // "a b" sorted
 
-    for (const sid in state.sessions) {
-      const s = state.sessions[sid];
+    // Archived dialogues count too — the map is the whole history of parts.
+    for (const s of [...Object.values(state.sessions), ...Object.values(state.archived || {})]) {
       const sNames = s.names || [];
 
       // Add each named part with the color from its first occurrence
@@ -3766,7 +4132,8 @@
   }
 
   function exportAllConversations() {
-    const sessions = Object.values(state.sessions || {});
+    // Export-all is the backup of record — archived dialogues must be in it.
+    const sessions = [...Object.values(state.sessions || {}), ...Object.values(state.archived || {})];
     if (sessions.length === 0) return;
     const blocks = sessions.map(s => sessionToText(s.names || [], s.messages || [], s.notes));
     const separator = '\n\n' + '═'.repeat(48) + '\n\n';
@@ -3801,7 +4168,10 @@
   // touches notes, toasts, and theme helpers, and calling it any earlier can
   // hit a temporal-dead-zone crash that leaves the page half-initialized
   // (which looks exactly like "my conversations were wiped").
-  (async () => { await restoreSession(); })();
+  (async () => {
+    await restoreSession();
+    updateSetupArchiveLink();   // setup screen may need its archive entry point
+  })();
 
 </script>
 </body>

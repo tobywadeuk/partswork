@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Inner Dialogues</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌀</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1721,7 +1723,6 @@
   window.addEventListener('beforeunload', flushPendingNoteSave);
 
   renderNameFields();
-  restoreSession();
 
   // ── Prompts ──
   const prompts = [
@@ -1767,13 +1768,15 @@
     document.getElementById('prompt-bar').classList.add('has-prompt');
   });
 
-  document.getElementById('prompt-clear').addEventListener('click', () => {
+  function resetPromptBar() {
     const el = document.getElementById('prompt-text');
     el.textContent = 'press prompt for a question';
     el.className = 'placeholder';
     document.getElementById('prompt-bar').classList.remove('has-prompt');
     lastPromptIdx = -1;
-  });
+  }
+
+  document.getElementById('prompt-clear').addEventListener('click', resetPromptBar);
 
   // ── Load conversation ──
   function loadConversationFile(file) {
@@ -2221,57 +2224,75 @@
     const dataUrl = sketchCanvas.toDataURL('image/png');
     const empty = document.getElementById('empty-msg');
     if (empty) empty.remove();
-    appendSketch(active, dataUrl, sketchCanvas.width, sketchCanvas.height);
+    appendMsg({ person: active, type: 'sketch', dataUrl, canvasW: sketchCanvas.width, canvasH: sketchCanvas.height, comment: '' });
     scrollMessagesToBottomWhenSettled();
     clearSketch();
     toggleSketchMode(false);
   }
 
-  function appendSketch(personIdx, dataUrl, canvasW, canvasH, animate = true, comment = '', _save = true) {
-    messages.push({ person: personIdx, type: 'sketch', dataUrl, canvasW, canvasH, comment });
+  // Single render path for both text and sketch messages. Takes the message
+  // object itself (pushed onto `messages` as-is, so hydrate preserves object
+  // identity with the stored session) and builds the bubble + action buttons.
+  function appendMsg(m, { animate = true, save = true } = {}) {
+    messages.push(m);
     const msgIdx = messages.length - 1;
-    const pos = position(personIdx);
-    const col = palette(personIdx);
+    const col = palette(m.person);
 
     const wrap = document.createElement('div');
-    wrap.className = `msg-wrap ${pos}`;
+    wrap.className = `msg-wrap ${position(m.person)}`;
     wrap.dataset.msgIdx = msgIdx;
     if (!animate) wrap.style.animation = 'none';
     wrap.addEventListener('pointerdown', startDrag);
 
     const nameEl = document.createElement('div');
     nameEl.className = 'msg-name';
-    nameEl.dataset.person = personIdx;
-    nameEl.textContent = names[personIdx];
+    nameEl.dataset.person = m.person;
+    nameEl.textContent = names[m.person];
 
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
     bubble.style.setProperty('--pc', col.dot);
     bubble.style.setProperty('--pbg', col.bg);
-    bubble.style.padding = '0';
-    bubble.style.overflow = 'hidden';
-    bubble.style.position = 'relative';
-
-    const img = document.createElement('img');
-    img.className = 'msg-sketch';
-    img.src = dataUrl;
-    bubble.appendChild(img);
 
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
     const delBtn = makeActionBtn(ICON_DELETE, 'Delete', () => requestDeleteMessage(wrap, delBtn));
-    actions.append(
-      makeActionBtn(ICON_COMMENT, 'Add note', () => toggleComment(msgIdxOf(wrap), wrap)),
-      delBtn,
-    );
+
+    if (m.type === 'sketch') {
+      bubble.style.padding = '0';
+      bubble.style.overflow = 'hidden';
+      bubble.style.position = 'relative';
+      const img = document.createElement('img');
+      img.className = 'msg-sketch';
+      img.src = m.dataUrl;
+      bubble.appendChild(img);
+      actions.append(
+        makeActionBtn(ICON_COMMENT, 'Add note', () => toggleComment(msgIdxOf(wrap), wrap)),
+        delBtn,
+      );
+    } else {
+      const textSpan = document.createElement('span');
+      textSpan.className = 'msg-text';
+      textSpan.textContent = m.text;
+      bubble.appendChild(textSpan);
+      actions.append(
+        makeActionBtn(ICON_COPY, 'Copy message', () => {
+          const msg = messages[msgIdxOf(wrap)];
+          navigator.clipboard.writeText(msg?.text || '').then(() => showToast('copied'));
+        }),
+        makeActionBtn(ICON_COMMENT, 'Add note', () => toggleComment(msgIdxOf(wrap), wrap)),
+        makeActionBtn(ICON_EDIT,    'Edit',     () => editMessage(msgIdxOf(wrap), bubble)),
+        delBtn,
+      );
+    }
     bubble.appendChild(actions);
 
     wrap.append(nameEl, bubble);
 
-    if (messages[msgIdx].comment) renderComment(wrap, msgIdx);
+    if (m.comment) renderComment(wrap, msgIdx);
 
     msgsEl.appendChild(wrap);
-    if (_save) saveSession();
+    if (save) saveSession();
   }
 
   // ── Start chat ──
@@ -2289,7 +2310,7 @@
     if (loadedMessages && loadedMessages.length > 0) {
       const empty = document.getElementById('empty-msg');
       if (empty) empty.remove();
-      for (const m of loadedMessages) appendMessage(m.person, m.text, false, '', false);
+      for (const m of loadedMessages) appendMsg({ person: m.person, text: m.text, comment: '' }, { animate: false, save: false });
       saveSession();
       scrollMessagesToBottomWhenSettled();
     }
@@ -2312,9 +2333,9 @@
 
   function refreshPositions() {
     document.querySelectorAll('.msg-wrap[data-msg-idx]').forEach(wrap => {
-      const idx = +wrap.dataset.msgIdx;
-      const person = messages[idx].person;
-      wrap.className = `msg-wrap ${position(person)}`;
+      // Skip the sentinel left on a wrap that's mid-fade after delete (idx -1).
+      const m = messages[+wrap.dataset.msgIdx];
+      if (m) wrap.className = `msg-wrap ${position(m.person)}`;
     });
   }
 
@@ -2424,59 +2445,6 @@
     msgInputEl.focus();
   }
 
-  function appendMessage(personIdx, text, animate = true, comment = '', _save = true) {
-    messages.push({ person: personIdx, text, comment });
-
-    const pos = position(personIdx);
-    const col = palette(personIdx);
-
-    const msgIdx = messages.length - 1;
-
-    const wrap = document.createElement('div');
-    wrap.className = `msg-wrap ${pos}`;
-    wrap.dataset.msgIdx = msgIdx;
-    if (!animate) wrap.style.animation = 'none';
-
-    wrap.addEventListener('pointerdown', startDrag);
-
-    const nameEl = document.createElement('div');
-    nameEl.className = 'msg-name';
-    nameEl.dataset.person = personIdx;
-    nameEl.textContent = names[personIdx];
-
-    const bubble = document.createElement('div');
-    bubble.className = 'msg-bubble';
-    bubble.style.setProperty('--pc', col.dot);
-    bubble.style.setProperty('--pbg', col.bg);
-
-    const textSpan = document.createElement('span');
-    textSpan.className = 'msg-text';
-    textSpan.textContent = text;
-    bubble.appendChild(textSpan);
-
-    const actions = document.createElement('div');
-    actions.className = 'msg-actions';
-    const delBtn = makeActionBtn(ICON_DELETE, 'Delete', () => requestDeleteMessage(wrap, delBtn));
-    actions.append(
-      makeActionBtn(ICON_COPY,    'Copy message', () => {
-        const m = messages[msgIdxOf(wrap)];
-        navigator.clipboard.writeText(m?.text || '').then(() => showToast('copied'));
-      }),
-      makeActionBtn(ICON_COMMENT, 'Add note', () => toggleComment(msgIdxOf(wrap), wrap)),
-      makeActionBtn(ICON_EDIT,    'Edit',     () => editMessage(msgIdxOf(wrap), bubble)),
-      delBtn,
-    );
-    bubble.appendChild(actions);
-
-    wrap.append(nameEl, bubble);
-
-    // Restore saved comment if any
-    if (messages[msgIdx].comment) renderComment(wrap, msgIdx);
-
-    msgsEl.appendChild(wrap);
-    if (_save) saveSession();
-  }
-
   function renderComment(wrap, msgIdx) {
     const note = document.createElement('div');
     note.className = 'msg-comment';
@@ -2529,7 +2497,7 @@
     const empty = document.getElementById('empty-msg');
     if (empty) empty.remove();
 
-    appendMessage(active, text);
+    appendMsg({ person: active, text, comment: '' });
 
     scrollMessagesToBottom();
     msgInputEl.focus();
@@ -2985,49 +2953,58 @@
     } catch (_) { return false; }
   }
 
-  function loadStoredState() {
+  // Read + parse + validate one stored state blob. Returns the parsed state
+  // or null. Shape: { sessions: {<id>: <object>, ...}, activeId: string|null }.
+  function readStateFromKey(key) {
     try {
-      const raw = localStorage.getItem(STATE_KEY);
-      if (!raw) return false;
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
       const parsed = JSON.parse(raw);
-      // Validate shape — must be { sessions: {<id>: <object>, ...}, activeId: string|null }
-      if (!parsed || typeof parsed !== 'object') return false;
-      if (!parsed.sessions || typeof parsed.sessions !== 'object' || Array.isArray(parsed.sessions)) return false;
+      if (!parsed || typeof parsed !== 'object') return null;
+      if (!parsed.sessions || typeof parsed.sessions !== 'object' || Array.isArray(parsed.sessions)) return null;
       const ids = Object.keys(parsed.sessions);
-      if (!ids.length) return false;
+      if (!ids.length) return null;
       // Each session must at least be a non-null object
-      if (ids.some(id => !parsed.sessions[id] || typeof parsed.sessions[id] !== 'object')) return false;
-      state = parsed;
-      // Normalize each session's notes shape. Older sessions had `notes` as a
-      // single string; the new shape is an array of note objects with an
-      // `activeNoteId` pointer. Always ensure at least one note exists.
-      for (const sid in state.sessions) {
-        const s = state.sessions[sid];
-        if (typeof s.notes === 'string') {
-          const noteId = genId();
-          const now = s.updatedAt || Date.now();
-          s.notes = [{ id: noteId, content: s.notes, createdAt: now, updatedAt: now }];
-          s.activeNoteId = noteId;
-        } else if (!Array.isArray(s.notes)) {
-          s.notes = [];
-          s.activeNoteId = null;
-        }
-        if (s.notes.length === 0) {
-          const noteId = genId();
-          const now = Date.now();
-          s.notes = [{ id: noteId, content: '', createdAt: now, updatedAt: now }];
-          s.activeNoteId = noteId;
-        }
-        if (!s.activeNoteId || !s.notes.find(n => n.id === s.activeNoteId)) {
-          s.activeNoteId = s.notes[0].id;
-        }
+      if (ids.some(id => !parsed.sessions[id] || typeof parsed.sessions[id] !== 'object')) return null;
+      return parsed;
+    } catch (_) { return null; }
+  }
+
+  // Load + normalize state from a storage key (primary by default; the backup
+  // restore path passes BACKUP_KEY so it gets identical normalization).
+  function loadStoredState(key = STATE_KEY) {
+    const parsed = readStateFromKey(key);
+    if (!parsed) return false;
+    state = parsed;
+    // Normalize each session's notes shape. Older sessions had `notes` as a
+    // single string; the new shape is an array of note objects with an
+    // `activeNoteId` pointer. Always ensure at least one note exists.
+    for (const sid in state.sessions) {
+      const s = state.sessions[sid];
+      if (typeof s.notes === 'string') {
+        const noteId = genId();
+        const now = s.updatedAt || Date.now();
+        s.notes = [{ id: noteId, content: s.notes, createdAt: now, updatedAt: now }];
+        s.activeNoteId = noteId;
+      } else if (!Array.isArray(s.notes)) {
+        s.notes = [];
+        s.activeNoteId = null;
       }
-      if (!state.sessions[state.activeId]) {
-        const validIds = sessionList();
-        state.activeId = validIds[validIds.length - 1] || null;
+      if (s.notes.length === 0) {
+        const noteId = genId();
+        const now = Date.now();
+        s.notes = [{ id: noteId, content: '', createdAt: now, updatedAt: now }];
+        s.activeNoteId = noteId;
       }
-      return true;
-    } catch (_) { return false; }
+      if (!s.activeNoteId || !s.notes.find(n => n.id === s.activeNoteId)) {
+        s.activeNoteId = s.notes[0].id;
+      }
+    }
+    if (!state.sessions[state.activeId]) {
+      const validIds = sessionList();
+      state.activeId = validIds[validIds.length - 1] || null;
+    }
+    return true;
   }
 
   function createSession(initialNames) {
@@ -3088,18 +3065,15 @@
       messages = [];
       active = 0;
       saveSession();
+      // The user explicitly deleted their last dialogue — mirror the empty
+      // state to the backup too, or auto-restore would resurrect it on the
+      // next load. (saveSession deliberately never writes an empty backup.)
+      try { localStorage.setItem(BACKUP_KEY, JSON.stringify(state)); } catch (_) {}
       // Drop back to setup
-      hideApp();
       msgsEl.innerHTML = '<div class="empty" id="empty-msg"><span class="empty-orb"></span>The conversation begins here.</div>';
-      const promptEl = document.getElementById('prompt-text');
-      promptEl.textContent = 'press prompt for a question';
-      promptEl.className = 'placeholder';
-      document.getElementById('prompt-bar').classList.remove('has-prompt');
-      lastPromptIdx = -1;
-      document.querySelector('.setup-wrap').style.display = '';
-      document.getElementById('setup-back').style.display = 'none';
+      resetPromptBar();
       notesArea.value = '';
-      resetSetupForm();
+      goToSetup();
       renderTabs();
       renderNoteTabs();
     } else if (wasActive) {
@@ -3135,10 +3109,7 @@
       // appendChild doesn't trigger an individual reflow.
       const prevDisplay = msgsEl.style.display;
       msgsEl.style.display = 'none';
-      for (const m of snapshot) {
-        if (m.type === 'sketch') appendSketch(m.person, m.dataUrl, m.canvasW, m.canvasH, false, m.comment || '', false);
-        else                     appendMessage(m.person, m.text, false, m.comment || '', false);
-      }
+      for (const m of snapshot) appendMsg(m, { animate: false, save: false });
       msgsEl.style.display = prevDisplay;
     }
 
@@ -3351,43 +3322,25 @@
     });
   }
 
-  function tryLoadFromKey(key) {
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) return false;
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') return false;
-      if (!parsed.sessions || typeof parsed.sessions !== 'object' || Array.isArray(parsed.sessions)) return false;
-      const ids = Object.keys(parsed.sessions);
-      if (!ids.length) return false;
-      if (ids.some(id => !parsed.sessions[id] || typeof parsed.sessions[id] !== 'object')) return false;
-      state = parsed;
-      return true;
-    } catch (_) { return false; }
-  }
-
   function restoreSession() {
     try {
       migrateLegacy();
-      loadStoredState();
+      // Primary first; fall back to the rolling backup so sessions are never
+      // lost just because the primary key was evicted or corrupted. The backup
+      // goes through the same load path, so it gets identical normalization.
+      let fromBackup = false;
+      if (!loadStoredState()) fromBackup = loadStoredState(BACKUP_KEY);
       if (current()) {
+        if (fromBackup) {
+          saveSession(); // re-establish the primary key from the recovered state
+          showToast('sessions restored from backup');
+        }
         showApp();
         hydrateActiveSession();
         return true;
       }
     } catch (e) {
       console.error('restoreSession failed:', e);
-    }
-    // Primary key missing or empty — auto-restore from backup so sessions are
-    // never lost just because the user didn't click a recovery button in time.
-    if (tryLoadFromKey(BACKUP_KEY)) {
-      try { localStorage.setItem(STATE_KEY, localStorage.getItem(BACKUP_KEY)); } catch (_) {}
-      if (current()) {
-        showApp();
-        hydrateActiveSession();
-        showToast('sessions restored from backup');
-        return true;
-      }
     }
     return false;
   }
@@ -3737,6 +3690,13 @@
   function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+
+  // ── Boot ──
+  // Runs last so every const/let above is initialized — restoring a session
+  // touches notes, toasts, and theme helpers, and calling it any earlier can
+  // hit a temporal-dead-zone crash that leaves the page half-initialized
+  // (which looks exactly like "my conversations were wiped").
+  restoreSession();
 
 </script>
 </body>

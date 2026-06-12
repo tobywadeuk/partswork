@@ -2765,7 +2765,12 @@
     wrap.style.transition = 'opacity 0.15s ease';
     wrap.style.opacity = '0.15';
 
-    dragging = { wrap, ghost, msgIdx, origPc, origPbg, startX: e.clientX, startY: e.clientY, targetPart: null, dropChip: null };
+    // Snapshot chip rects once — chips don't move during a drag, and measuring
+    // them on every pointermove forces a layout pass per event.
+    const chipRects = Array.from(document.querySelectorAll('.speaker-btn[data-person]'))
+      .map(btn => ({ btn, r: btn.getBoundingClientRect() }));
+
+    dragging = { wrap, ghost, msgIdx, origPc, origPbg, startX: e.clientX, startY: e.clientY, targetPart: null, dropChip: null, chipRects, previewPart: undefined };
     document.body.classList.add('dragging-msg');
     document.addEventListener('pointermove', onDragMove);
     document.addEventListener('pointerup', onDragEnd);
@@ -2797,8 +2802,10 @@
   }
 
   function chipAtPoint(cx, cy) {
-    for (const btn of document.querySelectorAll('.speaker-btn[data-person]')) {
-      const r = btn.getBoundingClientRect();
+    const list = dragging?.chipRects
+      || Array.from(document.querySelectorAll('.speaker-btn[data-person]'))
+           .map(btn => ({ btn, r: btn.getBoundingClientRect() }));
+    for (const { btn, r } of list) {
       if (cx >= r.left - 10 && cx <= r.right + 10 && cy >= r.top - 10 && cy <= r.bottom + 10) return btn;
     }
     return null;
@@ -2825,9 +2832,14 @@
     }
 
     // Keep ghost colour in sync with wherever the gesture would land.
-    const gc = previewPart !== null && previewPart >= 0 ? palette(previewPart) : null;
-    dragging.ghost.style.setProperty('--pc',  gc ? gc.dot : dragging.origPc);
-    dragging.ghost.style.setProperty('--pbg', gc ? gc.bg  : dragging.origPbg);
+    // Only touch style when the target actually changes — these writes
+    // otherwise invalidate style on every pointermove.
+    if (previewPart !== dragging.previewPart) {
+      dragging.previewPart = previewPart;
+      const gc = previewPart !== null && previewPart >= 0 ? palette(previewPart) : null;
+      dragging.ghost.style.setProperty('--pc',  gc ? gc.dot : dragging.origPc);
+      dragging.ghost.style.setProperty('--pbg', gc ? gc.bg  : dragging.origPbg);
+    }
   }
 
   function onDragEnd(e) {

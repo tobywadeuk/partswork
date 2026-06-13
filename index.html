@@ -377,6 +377,19 @@
     white-space: nowrap;
   }
 
+  .tab-rename-input {
+    padding: 5px 12px;
+    border-radius: 14px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    outline: none;
+    box-sizing: border-box;
+  }
+
   .tab-close {
     font-size: 13px;
     line-height: 1;
@@ -669,6 +682,41 @@
     stroke-linecap: round; stroke-linejoin: round; fill: none;
   }
 
+  /* Per-part note card (#10) */
+  #part-card {
+    position: absolute;
+    top: 44px;
+    right: 14px;
+    bottom: 14px;
+    width: 200px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 12px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 6px 24px rgba(44, 36, 32, 0.16);
+  }
+  #part-card-close {
+    position: absolute;
+    top: 4px; right: 8px;
+    background: none; border: none; cursor: pointer;
+    color: var(--ink-faint); font-size: 18px; line-height: 1; padding: 2px 4px;
+  }
+  #part-card-close:hover { color: var(--ink); }
+  #part-card-head {
+    display: flex; align-items: center; gap: 7px;
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    color: var(--ink); margin-bottom: 8px; padding-right: 16px;
+  }
+  #part-card-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  #part-card-note {
+    flex: 1; resize: none; border: none; outline: none;
+    background: transparent; color: var(--ink);
+    font-family: 'Lora', Georgia, serif; font-size: 13px; line-height: 1.6;
+  }
+  #part-card-note::placeholder { color: var(--ink-faint); font-style: italic; }
+
   /* ── Focus mode: hide top bar + notes panel entirely. Prompt bar reserves
      right padding so the focus icon doesn't overlap the Prompt button. ── */
   #app.focus-mode .app-top { display: none; }
@@ -840,6 +888,17 @@
   .msg-wrap.mid       .msg-name { text-align: center; }
   .msg-wrap.mid-right .msg-name { text-align: right; }
 
+  /* Message timestamp (#6) — hover-reveal, same pattern as .msg-actions */
+  .msg-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--ink-faint);
+    margin-left: 6px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .msg-wrap:hover .msg-time { opacity: 1; }
+
   .msg-bubble {
     font-family: 'Lora', serif;
     font-size: 14px;
@@ -965,6 +1024,28 @@
   #note-tab-strip::-webkit-scrollbar { width: 4px; }
   #note-tab-strip::-webkit-scrollbar-track { background: transparent; }
   #note-tab-strip::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
+
+  /* Backup nudge — felt, not seen (#3) */
+  #backup-nudge {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faint);
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--rule);
+    flex-shrink: 0;
+  }
+  #backup-nudge button {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--ink-muted);
+    padding: 0 2px;
+    text-decoration: underline;
+  }
+  #backup-nudge button:hover { color: var(--ink); }
+  #backup-nudge-x { text-decoration: none !important; font-size: 12px !important; }
 
   .note-tab {
     display: flex;
@@ -1603,6 +1684,11 @@
 <div id="notes-panel">
   <div class="notes-header">notes</div>
   <div id="note-tab-strip"></div>
+  <div id="backup-nudge" style="display:none">
+    last backed up <span id="backup-nudge-days"></span> ago —
+    <button id="backup-nudge-btn" type="button">export all</button>
+    <button id="backup-nudge-x" type="button" title="dismiss">×</button>
+  </div>
   <textarea id="notes-area" placeholder="observations, patterns, things to return to…" spellcheck="false"></textarea>
 </div>
 
@@ -1645,6 +1731,11 @@
     <button id="parts-map-export-btn" type="button" title="export all conversations as one txt file">
       <svg viewBox="0 0 16 16"><path d="M8 2v8M8 10l-3-3M8 10l3-3M3 13h10"/></svg>
     </button>
+    <div id="part-card" style="display:none">
+      <button id="part-card-close" type="button" title="close">×</button>
+      <div id="part-card-head"><span id="part-card-dot"></span><span id="part-card-name"></span></div>
+      <textarea id="part-card-note" placeholder="what this part wants, protects, fears…" spellcheck="false"></textarea>
+    </div>
   </div>
 </div>
 
@@ -1749,7 +1840,7 @@
   let messages = [];
   let dragging = null;
   let pendingUndo = null;   // { undo, timer } — at most one offer at a time
-  let state = { activeId: null, sessions: {}, archived: {} };
+  let state = { activeId: null, sessions: {}, archived: {}, meta: { lastExportAt: null }, parts: {} };
 
   let sketchMode = false;
   let sketchPainting = false;
@@ -1898,6 +1989,46 @@
     if (document.visibilityState === 'hidden') flushPendingNoteSave();
   });
   window.addEventListener('pagehide', flushPendingNoteSave);
+
+  // ── Backup nudge (#3) ──
+  // A quiet reminder to export when it's been a while and there's enough to
+  // lose. Dismissal is per-session (not persisted) so it returns next visit.
+  let nudgeDismissed = false;
+  function markExported() {
+    state.meta ||= { lastExportAt: null };
+    state.meta.lastExportAt = Date.now();
+    saveSession();
+    updateBackupNudge();   // a successful export hides the nudge
+  }
+  function totalMessageCount() {
+    let n = 0;
+    for (const s of [...Object.values(state.sessions || {}), ...Object.values(state.archived || {})]) {
+      n += (s.messages || []).length;
+    }
+    return n;
+  }
+  function earliestCreatedAt() {
+    let min = Infinity;
+    for (const s of [...Object.values(state.sessions || {}), ...Object.values(state.archived || {})]) {
+      if (s.createdAt && s.createdAt < min) min = s.createdAt;
+    }
+    return min === Infinity ? Date.now() : min;
+  }
+  function updateBackupNudge() {
+    const el = document.getElementById('backup-nudge');
+    if (!el) return;
+    const since = state.meta?.lastExportAt || earliestCreatedAt();
+    const days = Math.floor((Date.now() - since) / 86400000);
+    const show = !nudgeDismissed && days >= 14 && totalMessageCount() > 20;
+    if (!show) { el.style.display = 'none'; return; }
+    document.getElementById('backup-nudge-days').textContent = `${days} days`;
+    el.style.display = '';
+  }
+  document.getElementById('backup-nudge-btn').addEventListener('click', exportAllConversations);
+  document.getElementById('backup-nudge-x').addEventListener('click', () => {
+    nudgeDismissed = true;
+    updateBackupNudge();
+  });
 
   renderNameFields();
 
@@ -2390,12 +2521,14 @@
       a.href = URL.createObjectURL(blob);
       a.click();
     }, 'image/png');
+    markExported();
   });
 
   // ── Save conversation ──
   document.getElementById('save-btn').addEventListener('click', () => {
     const session = current();
     downloadTextFile(`${dialogueFilename()}.txt`, sessionToText(names, messages, session?.notes));
+    markExported();
   });
 
   // ── Sketch ──
@@ -2486,10 +2619,20 @@
     const dataUrl = sketchCanvas.toDataURL('image/png');
     const empty = document.getElementById('empty-msg');
     if (empty) empty.remove();
-    appendMsg({ person: active, type: 'sketch', dataUrl, canvasW: sketchCanvas.width, canvasH: sketchCanvas.height, comment: '' });
+    appendMsg({ person: active, type: 'sketch', dataUrl, canvasW: sketchCanvas.width, canvasH: sketchCanvas.height, comment: '', ts: Date.now() });
     scrollMessagesToBottomWhenSettled();
     clearSketch();
     toggleSketchMode(false);
+  }
+
+  // Format a message timestamp (#6): time-only if today, else "5 jun 14:30",
+  // with the year appended once it's not the current year.
+  function fmtTs(ts) {
+    const d = new Date(ts), now = new Date();
+    const hm = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    if (d.toDateString() === now.toDateString()) return hm;
+    const day = `${d.getDate()} ${'jan feb mar apr may jun jul aug sep oct nov dec'.split(' ')[d.getMonth()]}`;
+    return d.getFullYear() === now.getFullYear() ? `${day} ${hm}` : `${day} ${d.getFullYear()}`;
   }
 
   // Single render path for both text and sketch messages. Takes the message
@@ -2510,6 +2653,14 @@
     nameEl.className = 'msg-name';
     nameEl.dataset.person = m.person;
     nameEl.textContent = names[m.person];
+    // Timestamp (#6). Absence means the message predates timestamps — render nothing.
+    if (m.ts) {
+      const t = document.createElement('span');
+      t.className = 'msg-time';
+      t.textContent = fmtTs(m.ts);
+      t.title = new Date(m.ts).toLocaleString();
+      nameEl.appendChild(t);
+    }
 
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
@@ -2622,7 +2773,13 @@
         function save() {
           if (saved) return;
           saved = true;
-          const val = input.value.trim() || names[i];
+          const oldName = names[i];
+          const val = input.value.trim() || oldName;
+          // Carry the part's map note across a rename so it isn't orphaned (#10).
+          if (val !== oldName && state.parts[oldName] && !state.parts[val]) {
+            state.parts[val] = state.parts[oldName];
+            delete state.parts[oldName];
+          }
           names[i] = val;
           document.querySelectorAll(`.msg-name[data-person="${i}"]`).forEach(el => el.textContent = val);
           saveSession();
@@ -2750,7 +2907,7 @@
     const empty = document.getElementById('empty-msg');
     if (empty) empty.remove();
 
-    appendMsg({ person: active, text, comment: '' });
+    appendMsg({ person: active, text, comment: '', ts: Date.now() });
 
     scrollMessagesToBottom();
     msgInputEl.focus();
@@ -3160,7 +3317,7 @@
   }
 
   function tabLabel(session) {
-    return (session.names || []).join(' · ') || 'New dialogue';
+    return session.title || (session.names || []).join(' · ') || 'New dialogue';
   }
 
   function currentNote() {
@@ -3210,9 +3367,16 @@
     }
   }
 
+  let lastSaveErrorAt = 0;
   function onSaveError(e) {
     saveDirty = false;
     console.error('[inner-dialogues] save failed:', e);
+    // Rate-limit: a permanently-broken storage layer would otherwise toast on
+    // every keystroke. One warning a minute is enough to prompt a manual export.
+    if (Date.now() - lastSaveErrorAt > 60000) {
+      lastSaveErrorAt = Date.now();
+      showToast('couldn’t save — export your conversations now (txt button)', 6000);
+    }
   }
 
   function persistState() {
@@ -3327,6 +3491,8 @@
     if (!parsed) return false;
     state = parsed;
     state.archived ||= {};
+    state.meta ||= { lastExportAt: null };
+    state.parts ||= {};
     for (const sid in state.sessions) normalizeSession(state.sessions[sid]);
     for (const sid in state.archived) normalizeSession(state.archived[sid]);
     if (!state.sessions[state.activeId]) {
@@ -3579,6 +3745,7 @@
     const note = currentNote();
     notesArea.value = note?.content || '';
     renderNoteTabs();
+    updateBackupNudge();   // natural heartbeat — runs on every restore/switch
   }
 
   // Reset the setup form to a clean 2-field state and focus the first input.
@@ -3656,6 +3823,36 @@
         tab.classList.remove('drag-over');
         const draggedId = e.dataTransfer.getData('text/session-id');
         if (draggedId && draggedId !== id) reorderSessions(draggedId, id);
+      });
+
+      // Double-click to rename — mirrors the speaker-chip rename pattern.
+      tab.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        const input = document.createElement('input');
+        input.className = 'tab-rename-input';
+        input.value = tabLabel(session);
+        input.maxLength = 40;
+        input.draggable = false;
+        input.title = 'empty = use part names';
+        input.style.width = Math.max(70, tab.offsetWidth) + 'px';
+        // Stop the tab-reorder drag logic from grabbing the input.
+        input.addEventListener('pointerdown', ev => ev.stopPropagation());
+        tab.replaceWith(input);
+        input.focus();
+        input.select();
+        let saved = false;
+        function save() {
+          if (saved) return;
+          saved = true;
+          session.title = input.value.trim() || '';   // empty clears → names fallback
+          saveSession();
+          renderTabs();
+        }
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', ev => {
+          if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+          else if (ev.key === 'Escape') { saved = true; renderTabs(); }
+        });
       });
 
       tab.appendChild(label);
@@ -3818,7 +4015,7 @@
 
   // ── Distil ──
   let toastTimer = null;
-  function showToast(msg) {
+  function showToast(msg, ms = 2200) {
     const t = document.getElementById('distil-toast');
     t.textContent = msg;
     t.style.opacity = '1';
@@ -3828,7 +4025,7 @@
       toastTimer = null;
       t.style.opacity = '0';
       t.style.transform = 'translateX(-50%) translateY(12px)';
-    }, 2200);
+    }, ms);
   }
 
   function doDistil() {
@@ -4062,6 +4259,15 @@
         fill: node.color,
         style: 'cursor: grab;',
       });
+      // A part carrying a saved note gets a ring + hover tooltip of its first line (#10).
+      const note = (state.parts[node.name]?.note || '').trim();
+      if (note) {
+        node.circle.setAttribute('stroke', cInk);
+        node.circle.setAttribute('stroke-width', '1.5');
+        const title = svgEl('title', {});
+        title.textContent = note.split('\n')[0];
+        node.circle.appendChild(title);
+      }
       svg.appendChild(node.circle);
       node.label = svgEl('text', {
         x: node.x, y: node.y + LABEL_DY,
@@ -4083,8 +4289,11 @@
         const start = clientToSvg(e.clientX, e.clientY);
         const offX = node.x - start.x;
         const offY = node.y - start.y;
+        const downX = e.clientX, downY = e.clientY;
+        let moved = 0;
 
         function onMove(ev) {
+          moved = Math.max(moved, Math.hypot(ev.clientX - downX, ev.clientY - downY));
           const p = clientToSvg(ev.clientX, ev.clientY);
           node.baseX = node.x = p.x + offX;
           node.baseY = node.y = p.y + offY;
@@ -4096,6 +4305,8 @@
           document.removeEventListener('pointermove', onMove);
           document.removeEventListener('pointerup', onUp);
           document.removeEventListener('pointercancel', onUp);
+          // A near-stationary press is a click → open this part's note card (#10).
+          if (moved < 5) openPartCard(node.name, node.color);
         }
         document.addEventListener('pointermove', onMove);
         document.addEventListener('pointerup', onUp);
@@ -4126,7 +4337,44 @@
     partsMapRaf = requestAnimationFrame(step);
   }
 
+  // ── Per-part note card (#10) ──
+  let partCardName = null;
+  let partCardSaveTimer = null;
+  function flushPartCard() {
+    if (partCardSaveTimer) { clearTimeout(partCardSaveTimer); partCardSaveTimer = null; }
+    if (!partCardName) return;
+    const val = document.getElementById('part-card-note').value;
+    state.parts[partCardName] ||= { note: '', updatedAt: 0 };
+    if (state.parts[partCardName].note !== val) {
+      state.parts[partCardName].note = val;
+      state.parts[partCardName].updatedAt = Date.now();
+      saveSession();
+    }
+  }
+  function openPartCard(name, color) {
+    if (partCardName && partCardName !== name) flushPartCard();  // save the previous one first
+    partCardName = name;
+    const card = document.getElementById('part-card');
+    document.getElementById('part-card-name').textContent = name;
+    document.getElementById('part-card-dot').style.background = color || 'var(--ink)';
+    const ta = document.getElementById('part-card-note');
+    ta.value = state.parts[name]?.note || '';
+    card.style.display = 'flex';
+    ta.focus();
+  }
+  function closePartCard() {
+    flushPartCard();
+    partCardName = null;
+    document.getElementById('part-card').style.display = 'none';
+  }
+  document.getElementById('part-card-note').addEventListener('input', () => {
+    if (partCardSaveTimer) clearTimeout(partCardSaveTimer);
+    partCardSaveTimer = setTimeout(() => { partCardSaveTimer = null; flushPartCard(); }, 350);
+  });
+  document.getElementById('part-card-close').addEventListener('click', closePartCard);
+
   function closePartsMap() {
+    closePartCard();
     cancelPartsMapAnimation();
     document.getElementById('parts-map').classList.remove('visible');
   }
@@ -4137,8 +4385,23 @@
     if (sessions.length === 0) return;
     const blocks = sessions.map(s => sessionToText(s.names || [], s.messages || [], s.notes));
     const separator = '\n\n' + '═'.repeat(48) + '\n\n';
+    // Per-part notes captured on the parts map ride along as a final block.
+    const partsBlock = partsAsText();
+    if (partsBlock) blocks.push(partsBlock);
     const date = new Date().toISOString().slice(0, 10);
     downloadTextFile(`inner-dialogues-${date}.txt`, blocks.join(separator));
+    markExported();
+  }
+
+  // Serialize the per-part notes (#10) as a trailing "Parts" block for export.
+  function partsAsText() {
+    const rows = Object.entries(state.parts || {})
+      .map(([name, p]) => [name, (p && p.note || '').trim()])
+      .filter(([, note]) => note)
+      .map(([name, note]) => `${name} — ${note.split('\n').join(' ')}`);
+    if (!rows.length) return '';
+    const rule = '—'.repeat(48);
+    return `Parts\n${rule}\n\n${rows.join('\n')}`;
   }
 
   document.getElementById('parts-map-btn').addEventListener('click', () => {

@@ -1219,6 +1219,10 @@
     border-color: var(--ink);
   }
 
+  /* Pill reorder drag (changes the speaker's side in the chat) */
+  .speaker-btn.dragging { opacity: 0.35; }
+  .speaker-btn.drag-over { box-shadow: -2px 0 0 var(--ink-muted); }
+
   body.dragging-msg .speaker-btn.drop-target {
     background: var(--ink);
     color: var(--paper);
@@ -2791,6 +2795,30 @@
           else if (e.key === 'Escape') { saved = true; buildSpeakerRow(); }
         });
       });
+
+      // Drag a pill to reorder speakers → moves their side in the chat.
+      // Mirrors the tab-reorder pattern; click/dblclick still fire when undragged.
+      btn.draggable = true;
+      btn.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('text/speaker-idx', String(i));
+        e.dataTransfer.effectAllowed = 'move';
+        btn.classList.add('dragging');
+      });
+      btn.addEventListener('dragend', () => btn.classList.remove('dragging'));
+      btn.addEventListener('dragover', e => {
+        if (!e.dataTransfer.types.includes('text/speaker-idx')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        btn.classList.add('drag-over');
+      });
+      btn.addEventListener('dragleave', () => btn.classList.remove('drag-over'));
+      btn.addEventListener('drop', e => {
+        e.preventDefault();
+        btn.classList.remove('drag-over');
+        const from = parseInt(e.dataTransfer.getData('text/speaker-idx'), 10);
+        if (!isNaN(from) && from !== i) reorderSpeakers(from, i);
+      });
+
       row.appendChild(btn);
     });
 
@@ -2804,6 +2832,29 @@
     }
 
     renderTabs();
+  }
+
+  // Reorder speakers by dragging their pills. A speaker's chat slot
+  // (left/right/mid) is derived from its index, so reordering names moves their
+  // bubbles. Every message's `person` index is remapped to keep each line tied
+  // to the same speaker; colours follow the slot, as they do everywhere else.
+  function reorderSpeakers(fromIdx, toIdx) {
+    if (fromIdx === toIdx) return;
+    if (fromIdx < 0 || toIdx < 0 || fromIdx >= names.length || toIdx >= names.length) return;
+    const order = names.map((_, i) => i);
+    const [moved] = order.splice(fromIdx, 1);
+    order.splice(toIdx, 0, moved);
+    const remap = {};                       // oldIndex → newIndex
+    order.forEach((oldIdx, newIdx) => { remap[oldIdx] = newIdx; });
+    const newNames = order.map(oldIdx => names[oldIdx]);
+    names.length = 0;                        // mutate in place to keep session alias
+    names.push(...newNames);
+    for (const m of messages) m.person = remap[m.person] ?? m.person;
+    const newActive = remap[active] ?? active;
+    active = newActive;
+    saveSession();
+    hydrateActiveSession();                  // re-render bubbles with new slots + colours
+    setActive(newActive);                    // hydrate resets to 0; restore selection
   }
 
   function showAddSpeakerInput() {

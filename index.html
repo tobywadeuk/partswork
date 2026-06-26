@@ -986,7 +986,16 @@
     color: var(--ink-faint);
     border-bottom: 1px solid var(--rule);
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
+  #notes-close {
+    background: none; border: none; cursor: pointer;
+    color: var(--ink-faint); font-size: 20px; line-height: 1;
+    padding: 0 2px; margin: -4px 0;
+  }
+  #notes-close:hover { color: var(--ink); }
 
   #notes-area {
     flex: 1;
@@ -1222,6 +1231,16 @@
   /* Pill reorder drag (changes the speaker's side in the chat) */
   .speaker-btn.dragging { opacity: 0.35; }
   .speaker-btn.drag-over { box-shadow: -2px 0 0 var(--ink-muted); }
+
+  /* Touch long-press reorder — suppress the iOS callout and lift the held item. */
+  .tab, .speaker-btn { -webkit-touch-callout: none; }
+  .tab.reordering, .speaker-btn.reordering {
+    opacity: 0.95;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.28);
+    position: relative;
+    z-index: 6;
+    transition: none;
+  }
 
   body.dragging-msg .speaker-btn.drop-target {
     background: var(--ink);
@@ -1577,9 +1596,29 @@
   }
   .tab-archive-btn:hover { color: var(--ink-muted); background: rgba(0,0,0,0.05); }
 
+  /* Mobile-only affordances (notes button, sheet close) hidden on desktop. */
+  .mobile-only { display: none !important; }
+
+  /* Slide-up notes sheet scrim (mobile). */
+  #notes-scrim { display: none; position: fixed; inset: 0; background: rgba(30,24,20,0.34); z-index: 55; }
+  #notes-scrim.open { display: block; }
+
   /* Responsive */
   @media (max-width: 880px) {
-    #notes-panel { display: none !important; }
+    .mobile-only { display: inline-flex !important; }
+    /* Notes become a bottom sheet opened by the header "notes" button. */
+    #notes-panel.visible {
+      display: flex;
+      position: fixed;
+      top: auto; left: 0; right: 0; bottom: 0;
+      transform: translateY(100%);
+      width: 100%; height: 78dvh;
+      border-radius: var(--radius) var(--radius) 0 0;
+      box-shadow: 0 -8px 40px rgba(44,36,32,0.22);
+      z-index: 60;
+      transition: transform 0.28s ease;
+    }
+    #notes-panel.visible.open { transform: translateY(0); }
   }
 
   @media (max-width: 480px) {
@@ -1587,10 +1626,12 @@
     .setup-wrap { padding: 0 16px; width: 100%; max-width: 100%; box-sizing: border-box; }
     #setup { border-radius: var(--radius); padding: 36px 24px 32px; max-width: 100%; }
     #app { position: fixed; bottom: 0; left: 0; right: 0; border-radius: 0; height: 100dvh; max-width: 100%; padding-top: env(safe-area-inset-top, 0px); box-sizing: border-box; }
-    #notes-panel { display: none !important; }
-    #tab-strip { display: none !important; }
     .msg-wrap { max-width: 82%; }
     .msg-input, .name-row input, .speaker-new-input { font-size: 16px; }
+    /* Keep the session switcher reachable; tighten the header so it has room. */
+    .app-top { gap: 6px; padding: 10px 34px 10px 12px; }
+    .header-controls { gap: 6px; }
+    .header-btn { padding: 4px 2px; font-size: 11px; }
   }
 
 </style>
@@ -1634,6 +1675,7 @@
   <div class="app-top">
     <div id="tab-strip"></div>
     <div class="header-controls">
+      <button class="header-btn mobile-only" id="notes-btn">notes</button>
       <button class="header-btn" id="distil-btn">recap</button>
       <button class="header-btn" id="image-btn">image</button>
       <button class="header-btn" id="save-btn">txt</button>
@@ -1684,9 +1726,12 @@
   <svg viewBox="0 0 16 16"><line x1="4" y1="5" x2="12" y2="5"/><line x1="4" y1="5" x2="8" y2="12"/><line x1="12" y1="5" x2="8" y2="12"/><circle cx="4" cy="5" r="1.8" fill="currentColor"/><circle cx="12" cy="5" r="1.8" fill="currentColor"/><circle cx="8" cy="12" r="1.8" fill="currentColor"/></svg>
 </button>
 
+<!-- Scrim behind the mobile notes sheet -->
+<div id="notes-scrim"></div>
+
 <!-- Notes Panel -->
 <div id="notes-panel">
-  <div class="notes-header">notes</div>
+  <div class="notes-header">notes<button id="notes-close" class="mobile-only" type="button" title="close">×</button></div>
   <div id="note-tab-strip"></div>
   <div id="backup-nudge" style="display:none">
     last backed up <span id="backup-nudge-days"></span> ago —
@@ -2033,6 +2078,28 @@
     nudgeDismissed = true;
     updateBackupNudge();
   });
+
+  // ── Mobile notes sheet (#8b) ──
+  // On phones the notes panel hides off the bottom and slides up when opened
+  // from the header "notes" button; a scrim and × close it.
+  const notesScrim = document.getElementById('notes-scrim');
+  function openNotesSheet() {
+    document.getElementById('notes-panel').classList.add('open');
+    notesScrim.classList.add('open');
+    updateBackupNudge();
+    notesArea.focus();
+  }
+  function closeNotesSheet() {
+    document.getElementById('notes-panel').classList.remove('open');
+    notesScrim.classList.remove('open');
+    flushPendingNoteSave();
+  }
+  document.getElementById('notes-btn').addEventListener('click', () => {
+    const panel = document.getElementById('notes-panel');
+    panel.classList.contains('open') ? closeNotesSheet() : openNotesSheet();
+  });
+  document.getElementById('notes-close').addEventListener('click', closeNotesSheet);
+  notesScrim.addEventListener('click', closeNotesSheet);
 
   renderNameFields();
 
@@ -2818,6 +2885,10 @@
         const from = parseInt(e.dataTransfer.getData('text/speaker-idx'), 10);
         if (!isNaN(from) && from !== i) reorderSpeakers(from, i);
       });
+      // Touch can't fire HTML5 drag — long-press reorder covers it.
+      attachTouchReorder(btn, i,
+        () => speakerRowEl.querySelectorAll('.speaker-btn:not(.speaker-add-btn)'),
+        reorderSpeakers);
 
       row.appendChild(btn);
     });
@@ -2855,6 +2926,59 @@
     saveSession();
     hydrateActiveSession();                  // re-render bubbles with new slots + colours
     setActive(newActive);                    // hydrate resets to 0; restore selection
+  }
+
+  // Touch long-press reorder for a horizontal row of items (pills, tabs). Mouse
+  // keeps using native HTML5 drag; this only claims touch pointers, and only
+  // after a stationary hold — so a quick swipe still scrolls the row.
+  // `getItems` returns the live siblings; `onReorder(from, to)` does the move.
+  function attachTouchReorder(el, index, getItems, onReorder) {
+    el.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'touch') return;
+      const startX = e.clientX, startY = e.clientY;
+      let armed = false;
+      const hold = setTimeout(() => {
+        armed = true;
+        el.classList.add('reordering');
+        try { el.setPointerCapture(e.pointerId); } catch (_) {}
+        if (navigator.vibrate) { try { navigator.vibrate(8); } catch (_) {} }
+      }, 280);
+      function onMove(ev) {
+        if (!armed) {
+          // Movement before the hold completes means the user is scrolling.
+          if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 8) finish(false);
+          return;
+        }
+        ev.preventDefault();
+        el.style.transform = `translateX(${ev.clientX - startX}px) scale(1.04)`;
+      }
+      function onUp(ev) { finish(true, ev); }
+      function onCancel() { finish(false); }
+      function finish(commit, ev) {
+        clearTimeout(hold);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onCancel);
+        const wasArmed = armed;
+        armed = false;
+        el.classList.remove('reordering');
+        el.style.transform = '';
+        if (!commit || !wasArmed || !ev) return;
+        // Drop slot = how many item-centres sit left of the release point.
+        const items = [...getItems()];
+        let insert = 0;
+        for (const it of items) {
+          const r = it.getBoundingClientRect();
+          if (ev.clientX > r.left + r.width / 2) insert++;
+        }
+        let to = insert > index ? insert - 1 : insert;
+        to = Math.max(0, Math.min(items.length - 1, to));
+        if (to !== index) onReorder(index, to);
+      }
+      document.addEventListener('pointermove', onMove, { passive: false });
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onCancel);
+    });
   }
 
   function showAddSpeakerInput() {
@@ -3590,6 +3714,19 @@
     renderTabs();
   }
 
+  // Index-based variant for touch reorder (mirrors reorderSpeakers' model).
+  function reorderSessionsByIndex(from, to) {
+    const ids = sessionList();
+    if (from === to || from < 0 || to < 0 || from >= ids.length || to >= ids.length) return;
+    const [moved] = ids.splice(from, 1);
+    ids.splice(to, 0, moved);
+    const reordered = {};
+    for (const id of ids) reordered[id] = state.sessions[id];
+    state.sessions = reordered;
+    saveSession();
+    renderTabs();
+  }
+
   function switchToSession(id) {
     if (id === state.activeId || !state.sessions[id]) return;
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -3831,7 +3968,7 @@
       return;
     }
     strip.style.display = '';
-    ids.forEach(id => {
+    ids.forEach((id, idx) => {
       const session = state.sessions[id];
       const tab = document.createElement('button');
       tab.className = 'tab' + (id === state.activeId ? ' active' : '');
@@ -3875,6 +4012,10 @@
         const draggedId = e.dataTransfer.getData('text/session-id');
         if (draggedId && draggedId !== id) reorderSessions(draggedId, id);
       });
+      // Touch can't fire HTML5 drag — long-press reorder covers it.
+      attachTouchReorder(tab, idx,
+        () => document.querySelectorAll('#tab-strip .tab'),
+        reorderSessionsByIndex);
 
       // Double-click to rename — mirrors the speaker-chip rename pattern.
       tab.addEventListener('dblclick', e => {

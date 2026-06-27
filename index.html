@@ -1515,6 +1515,38 @@
   /* Mobile-only affordances (notes button, sheet close) hidden on desktop. */
   .mobile-only { display: none !important; }
 
+  /* Overflow "⋯" menu — only appears once the header collapses (≤480px). */
+  .overflow-only { display: none !important; }
+  #overflow-btn { font-size: 16px; letter-spacing: 0; line-height: 1; }
+  #overflow-menu {
+    display: none;
+    position: absolute;
+    top: 42px;
+    right: 10px;
+    z-index: 45;
+    flex-direction: column;
+    min-width: 124px;
+    padding: 4px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--card-shadow);
+  }
+  #overflow-menu.open { display: flex; }
+  #overflow-menu button {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    padding: 9px 12px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+  }
+  #overflow-menu button:hover { background: rgba(0,0,0,0.05); color: var(--ink); }
+
   /* Slide-up notes sheet scrim (mobile). */
   #notes-scrim { display: none; position: fixed; inset: 0; background: rgba(30,24,20,0.34); z-index: 55; }
   #notes-scrim.open { display: block; }
@@ -1548,6 +1580,9 @@
     .app-top { gap: 6px; padding: 10px 34px 10px 12px; }
     .header-controls { gap: 6px; }
     .header-btn { padding: 4px 2px; font-size: 11px; }
+    /* Collapse the export actions into the ⋯ menu so tabs get breathing room. */
+    #distil-btn, #image-btn, #save-btn { display: none; }
+    .overflow-only { display: inline-flex !important; }
   }
 
 </style>
@@ -1596,6 +1631,12 @@
       <button class="header-btn" id="image-btn">image</button>
       <button class="header-btn" id="save-btn">txt</button>
       <button class="header-btn" id="reset-btn" onclick="resetAll()">reset</button>
+      <button class="header-btn overflow-only" id="overflow-btn" type="button" title="more" aria-label="more actions">⋯</button>
+    </div>
+    <div id="overflow-menu">
+      <button id="ov-recap" type="button">recap</button>
+      <button id="ov-image" type="button">image</button>
+      <button id="ov-txt" type="button">txt</button>
     </div>
   </div>
   <button id="focus-btn" type="button" title="focus mode — hide tabs, controls, and notes">
@@ -2012,6 +2053,28 @@
   });
   document.getElementById('notes-close').addEventListener('click', closeNotesSheet);
   notesScrim.addEventListener('click', closeNotesSheet);
+
+  // ── Mobile overflow menu ──
+  // On phones the recap/image/txt actions collapse into a ⋯ dropdown; its items
+  // just proxy to the real (hidden) header buttons so there's one source of truth.
+  const overflowBtn = document.getElementById('overflow-btn');
+  const overflowMenu = document.getElementById('overflow-menu');
+  function closeOverflow() { overflowMenu.classList.remove('open'); }
+  overflowBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    overflowMenu.classList.toggle('open');
+  });
+  document.addEventListener('click', e => {
+    if (!overflowMenu.contains(e.target) && e.target !== overflowBtn) closeOverflow();
+  });
+  const proxyOverflow = (itemId, targetId) =>
+    document.getElementById(itemId).addEventListener('click', () => {
+      closeOverflow();
+      document.getElementById(targetId).click();
+    });
+  proxyOverflow('ov-recap', 'distil-btn');
+  proxyOverflow('ov-image', 'image-btn');
+  proxyOverflow('ov-txt', 'save-btn');
 
   renderNameFields();
 

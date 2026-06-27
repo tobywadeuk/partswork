@@ -1017,23 +1017,6 @@
     font-size: 11px;
   }
 
-  /* Multi-note UI removed — single notes textarea per dialogue */
-  #note-tab-strip { display: none !important; }
-  #note-tab-strip {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 4px;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--rule);
-    flex-shrink: 0;
-    max-height: 35vh;
-    overflow-y: auto;
-  }
-  #note-tab-strip::-webkit-scrollbar { width: 4px; }
-  #note-tab-strip::-webkit-scrollbar-track { background: transparent; }
-  #note-tab-strip::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
-
   /* Backup nudge — felt, not seen (#3) */
   #backup-nudge {
     font-family: 'DM Mono', monospace;
@@ -1055,73 +1038,6 @@
   }
   #backup-nudge button:hover { color: var(--ink); }
   #backup-nudge-x { text-decoration: none !important; font-size: 12px !important; }
-
-  .note-tab {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    padding: 7px 8px 7px 11px;
-    border-radius: 5px;
-    border: 1px solid var(--rule);
-    background: transparent;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--ink-muted);
-    cursor: pointer;
-    width: 100%;
-    text-align: left;
-    letter-spacing: 0.02em;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-  }
-  .note-tab:hover { border-color: var(--ink-faint); color: var(--ink); }
-  .note-tab.active {
-    background: var(--ink);
-    color: var(--paper);
-    border-color: var(--ink);
-  }
-
-  .note-tab-label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-  }
-
-  .note-tab-close {
-    font-size: 13px;
-    line-height: 1;
-    width: 16px;
-    height: 16px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 3px;
-    flex-shrink: 0;
-    opacity: 0;
-    transition: opacity 0.15s, color 0.15s, background 0.15s;
-  }
-  .note-tab:hover .note-tab-close { opacity: 0.6; }
-  .note-tab.active .note-tab-close { opacity: 0.55; }
-  .note-tab-close:hover { opacity: 1 !important; background: rgba(0,0,0,0.08); }
-  .note-tab.active .note-tab-close:hover { background: rgba(255,255,255,0.18); }
-
-  .note-tab-add {
-    width: 100%;
-    padding: 7px 8px;
-    border-radius: 5px;
-    border: 1px dashed var(--rule);
-    background: transparent;
-    cursor: pointer;
-    color: var(--ink-faint);
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    line-height: 1;
-    text-align: center;
-    letter-spacing: 0.04em;
-    transition: color 0.15s, border-color 0.15s;
-  }
-  .note-tab-add:hover { color: var(--ink-muted); border-color: var(--ink-faint); }
 
   /* ── Message comments ── */
   .msg-comment {
@@ -1732,7 +1648,6 @@
 <!-- Notes Panel -->
 <div id="notes-panel">
   <div class="notes-header">notes<button id="notes-close" class="mobile-only" type="button" title="close">×</button></div>
-  <div id="note-tab-strip"></div>
   <div id="backup-nudge" style="display:none">
     last backed up <span id="backup-nudge-days"></span> ago —
     <button id="backup-nudge-btn" type="button">export all</button>
@@ -2017,9 +1932,6 @@
     if (!note) return;
     note.content = notesArea.value;
     note.updatedAt = Date.now();
-    // Update only the active tab's label so we don't rebuild the strip on every keystroke
-    const activeLabel = document.querySelector('.note-tab.active .note-tab-label');
-    if (activeLabel) activeLabel.textContent = noteLabel(note);
     if (notesSaveTimer) clearTimeout(notesSaveTimer);
     notesSaveTimer = setTimeout(() => { notesSaveTimer = null; saveSession(); }, 350);
   });
@@ -2706,6 +2618,14 @@
     return d.getFullYear() === now.getFullYear() ? `${day} ${hm}` : `${day} ${d.getFullYear()}`;
   }
 
+  // Relabel an existing .msg-name without dropping its trailing .msg-time child
+  // (#6) — a plain `textContent = name` would wipe the timestamp span.
+  function setMsgNameLabel(nameEl, name) {
+    const time = nameEl.querySelector('.msg-time');
+    nameEl.textContent = name;
+    if (time) nameEl.appendChild(time);
+  }
+
   // Single render path for both text and sketch messages. Takes the message
   // object itself (pushed onto `messages` as-is, so hydrate preserves object
   // identity with the stored session) and builds the bubble + action buttons.
@@ -2852,7 +2772,7 @@
             delete state.parts[oldName];
           }
           names[i] = val;
-          document.querySelectorAll(`.msg-name[data-person="${i}"]`).forEach(el => el.textContent = val);
+          document.querySelectorAll(`.msg-name[data-person="${i}"]`).forEach(el => setMsgNameLabel(el, val));
           saveSession();
           buildSpeakerRow();
         }
@@ -3472,7 +3392,7 @@
     bubble.style.setProperty('--pc', palette(personIdx).dot);
     bubble.style.setProperty('--pbg', palette(personIdx).bg);
     const nameEl = wrap.querySelector('.msg-name');
-    nameEl.textContent = names[personIdx];
+    setMsgNameLabel(nameEl, names[personIdx]);
     nameEl.dataset.person = personIdx;
     wrap.className = `msg-wrap ${position(personIdx)}`;
   }
@@ -3499,22 +3419,6 @@
     const s = current();
     if (!s) return null;
     return s.notes?.find(n => n.id === s.activeNoteId) || s.notes?.[0] || null;
-  }
-
-  const NOTE_NUM_WORDS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
-  function noteFallbackName(idx) {
-    return idx < NOTE_NUM_WORDS.length ? `note ${NOTE_NUM_WORDS[idx]}` : `note ${idx + 1}`;
-  }
-  function noteLabel(note) {
-    if (!note) return 'note';
-    const firstLine = (note.content || '').split('\n').map(l => l.trim()).find(Boolean);
-    if (firstLine) return firstLine;
-    const s = current();
-    if (s && s.notes) {
-      const idx = s.notes.findIndex(n => n.id === note.id);
-      if (idx >= 0) return noteFallbackName(idx);
-    }
-    return 'note';
   }
 
   // Persistence: in-memory `state` is the source of truth; storage is an async
@@ -3760,7 +3664,6 @@
       notesArea.value = '';
       goToSetup();
       renderTabs();
-      renderNoteTabs();
     } else if (wasActive) {
       state.activeId = ids[ids.length - 1];
       saveSession();
@@ -3932,7 +3835,6 @@
     scrollMessagesToBottomWhenSettled();
     const note = currentNote();
     notesArea.value = note?.content || '';
-    renderNoteTabs();
     updateBackupNudge();   // natural heartbeat — runs on every restore/switch
   }
 
@@ -4078,104 +3980,6 @@
       archBtn.addEventListener('click', openArchivePanel);
       strip.appendChild(archBtn);
     }
-  }
-
-  function renderNoteTabs() {
-    const strip = document.getElementById('note-tab-strip');
-    if (!strip) return;
-    strip.innerHTML = '';
-    const session = current();
-    if (!session || !session.notes?.length) {
-      strip.style.display = 'none';
-      return;
-    }
-    strip.style.display = '';
-    session.notes.forEach(note => {
-      const tab = document.createElement('button');
-      tab.className = 'note-tab' + (note.id === session.activeNoteId ? ' active' : '');
-      tab.dataset.noteId = note.id;
-      tab.title = noteLabel(note);
-
-      const label = document.createElement('span');
-      label.className = 'note-tab-label';
-      label.textContent = noteLabel(note);
-      tab.appendChild(label);
-
-      if (session.notes.length > 1) {
-        const close = document.createElement('span');
-        close.className = 'note-tab-close';
-        close.textContent = '×';
-        close.title = 'Delete this note';
-        close.tabIndex = -1;
-        close.addEventListener('pointerdown', e => e.stopPropagation());
-        close.addEventListener('click', e => {
-          e.stopPropagation();
-          deleteNote(note.id);
-        });
-        tab.appendChild(close);
-      }
-
-      tab.addEventListener('click', () => switchToNote(note.id));
-      strip.appendChild(tab);
-    });
-
-    const addBtn = document.createElement('button');
-    addBtn.className = 'note-tab-add';
-    addBtn.textContent = '+ new note';
-    addBtn.title = 'Save and start a new note';
-    addBtn.addEventListener('click', createNote);
-    strip.appendChild(addBtn);
-  }
-
-  function createNote() {
-    const session = current();
-    if (!session) return;
-    const noteId = genId();
-    const now = Date.now();
-    session.notes.push({ id: noteId, content: '', createdAt: now, updatedAt: now });
-    session.activeNoteId = noteId;
-    saveSession();
-    notesArea.value = '';
-    notesArea.focus();
-    renderNoteTabs();
-  }
-
-  function switchToNote(id) {
-    const session = current();
-    if (!session || session.activeNoteId === id) return;
-    const note = session.notes.find(n => n.id === id);
-    if (!note) return;
-    session.activeNoteId = id;
-    saveSession();
-    notesArea.value = note.content;
-    renderNoteTabs();
-  }
-
-  function deleteNote(id) {
-    const session = current();
-    if (!session || session.notes.length <= 1) return;
-    const idx = session.notes.findIndex(n => n.id === id);
-    if (idx < 0) return;
-    const snapshot = session.notes[idx];
-    const wasActiveNote = session.activeNoteId === id;
-    const target = session;   // direct reference — survives session switches
-    session.notes.splice(idx, 1);
-    if (wasActiveNote) {
-      session.activeNoteId = session.notes[Math.max(0, idx - 1)].id;
-    }
-    const note = session.notes.find(n => n.id === session.activeNoteId);
-    notesArea.value = note?.content || '';
-    saveSession();
-    renderNoteTabs();
-    offerUndo('note deleted', () => {
-      target.notes.splice(Math.min(idx, target.notes.length), 0, snapshot);
-      if (wasActiveNote) target.activeNoteId = snapshot.id;
-      saveSession();
-      if (current() === target) {
-        notesArea.value = target.notes.find(n => n.id === target.activeNoteId)?.content || '';
-        renderNoteTabs();
-      }
-    });
   }
 
   async function restoreSession() {
@@ -4601,7 +4405,7 @@
     document.getElementById('parts-map').classList.add('visible');
   });
   document.getElementById('parts-map-export-btn').addEventListener('click', exportAllConversations);
-  document.querySelector('.parts-map-close').addEventListener('click', closePartsMap);
+  document.querySelector('#parts-map .parts-map-close').addEventListener('click', closePartsMap);
   document.getElementById('parts-map').addEventListener('click', e => {
     if (e.target === e.currentTarget) closePartsMap();
   });

@@ -2481,8 +2481,10 @@
     let pendingNotesHeader = false;
     let notesBuf = [];
 
+    const parts = {};
+
     function newSession() {
-      cur = { names: [], messages: [], notes: [], skipped: 0 };
+      cur = { names: [], messages: [], notes: [], skipped: 0, title: '' };
       sessions.push(cur);
       mode = 'body'; lastMsg = null; lastWasComment = false;
       pendingNotesHeader = false; notesBuf = [];
@@ -2505,6 +2507,20 @@
         continue;                  // otherwise decorative (title underline etc.)
       }
       if (mode === 'notes') { notesBuf.push(line); continue; }
+      if (mode === 'parts') {
+        const pm = trimmed.match(/^(.+?) — (.+)$/);
+        if (pm) parts[pm[1]] = pm[2];
+        continue;
+      }
+      // Header lines, before the first message of a block.
+      if (!cur.messages.length && !lastMsg) {
+        // Export-all ends with a "Parts" block of part notes.
+        if (trimmed === 'Parts' && !cur.names.length) { mode = 'parts'; continue; }
+        // "deadline week — dialogue between A and B": a renamed dialogue.
+        const tm = trimmed.match(/^(.+) — dialogue between .+$/);
+        if (tm) { cur.title = tm[1]; continue; }
+        if (/^dialogue between /.test(trimmed)) continue;
+      }
       if (trimmed === 'Notes') { pendingNotesHeader = true; continue; }
 
       const cm = line.match(/^ {2,}✦ ?(.*)$/);
@@ -2543,56 +2559,94 @@
       if (lastMsg && !lastWasComment) lastMsg.text += '\n' + line;
     }
     finishNotes();
-    return sessions.filter(s => s.messages.length || s.notes.length);
+    return { sessions: sessions.filter(s => s.messages.length || s.notes.length), parts };
   }
 
-  function importSession(p) {
-    const id = genId();
+  // A full stored-shape session from a text-parsed one.
+  function sessionFromParsed(p) {
     const now = Date.now();
-    const notes = p.notes.length ? p.notes
-      : [{ id: genId(), content: '', createdAt: now, updatedAt: now }];
-    state.sessions[id] = {
-      id,
+    return {
       names: p.names.length ? p.names : [`${placeholderTerm} 1`, `${placeholderTerm} 2`],
       messages: p.messages.map(m => ({ person: m.person, text: m.text, comment: m.comment || '' })),
-      notes,
-      activeNoteId: notes[0].id,
+      notes: p.notes,
+      title: p.title || undefined,
       createdAt: now,
       updatedAt: now,
     };
-    return id;
+  }
+
+  // Part notes from a file fill in what's missing. Where both sides have a
+  // different note, the file's is added underneath rather than lost — and
+  // loading the same file twice doesn't add it twice.
+  function mergePartNotes(incoming) {
+    for (const [name, raw] of Object.entries(incoming || {})) {
+      const note = String((raw && typeof raw === 'object' ? raw.note : raw) || '').trim();
+      if (!note) continue;
+      const have = (state.parts[name]?.note || '').trim();
+      if (have === note || have.includes(note)) continue;
+      state.parts[name] = {
+        note: have ? `${have}\n\n---\n\n${note}` : note,
+        updatedAt: Date.now(),
+      };
+    }
+  }
+
+  // Bring a file's dialogues in. `toOpen` becomes the open dialogue (whatever
+  // was open is filed away); everything in `toFile` goes to past dialogues.
+  // Fresh ids every time, so loading a file never overwrites what's here.
+  function applyImport({ toOpen, toFile, parts }) {
+    const adopt = s => { const id = genId(); s.id = id; normalizeSession(s); return id; };
+    const hadOpen = toOpen ? sessionList() : [];
+    for (const id of hadOpen) {
+      state.archived[id] = state.sessions[id];
+      delete state.sessions[id];
+    }
+    for (const s of toFile) state.archived[adopt(s)] = s;
+    if (toOpen) {
+      const id = adopt(toOpen);
+      state.sessions = { [id]: toOpen };
+      state.activeId = id;
+    }
+    mergePartNotes(parts);
+    saveSession();
+    updateSetupArchiveLink();
+    renderSessionBar();
+    if (toOpen) { showApp(); hydrateActiveSession(); }
+    const filed = toFile.length + hadOpen.length;
+    if (!toOpen) showToast(`imported ${toFile.length} into past dialogues`);
+    else if (filed > 0) showToast(`imported — ${filed} more in past dialogues`);
   }
 
   function loadConversationFile(file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      const parsedSessions = parseConversationText(ev.target.result);
-      if (!parsedSessions.length) { showToast('nothing readable in that file'); return; }
-      // A file can hold several dialogues (the export-all format does). The
-      // first one opens; the rest go straight into "past dialogues", and any
-      // dialogue already open is filed there too.
-      const hadOpen = sessionList().length;
-      let firstId = null;
-      let skipped = 0;
-      for (const p of parsedSessions) {
-        const id = importSession(p);
-        if (!firstId) firstId = id;
-        skipped += p.skipped;
+      const { readable, data } = splitDataBlock(ev.target.result);
+
+      // A complete copy, if the file carries one: exact, nothing lost.
+      const full = data && salvageState(data);
+      if (full && !stateIsEmpty(full)) {
+        const open = Object.values(full.sessions);
+        const first = full.sessions[full.activeId] || open[0] || null;
+        applyImport({
+          toOpen: first,
+          toFile: [...open.filter(s => s !== first), ...Object.values(full.archived)],
+          parts: full.parts,
+        });
+        return;
       }
-      for (const id of sessionList()) {
-        if (id === firstId) continue;
-        state.archived[id] = state.sessions[id];
-        delete state.sessions[id];
+
+      // Otherwise read the text, as files from before the data copy existed.
+      const { sessions: parsed, parts } = parseConversationText(readable);
+      if (!parsed.length) {
+        if (Object.keys(parts).length) { mergePartNotes(parts); saveSession(); showToast('part notes imported'); }
+        else showToast('nothing readable in that file');
+        return;
       }
-      state.activeId = firstId;
-      saveSession();
-      updateSetupArchiveLink();
-      showApp();
-      hydrateActiveSession();
-      const filed = parsedSessions.length - 1 + hadOpen;
-      if (filed > 0) showToast(`imported — ${filed} more in past dialogues`);
-      else if (skipped > 0) showToast(`skipped ${skipped} lines from extra speakers`);
+      const all = parsed.map(sessionFromParsed);
+      applyImport({ toOpen: all[0], toFile: all.slice(1), parts });
+      const skipped = parsed.reduce((n, p) => n + p.skipped, 0);
+      if (skipped > 0 && parsed.length === 1) showToast(`skipped ${skipped} lines from extra speakers`);
     };
     reader.readAsText(file);
   }
@@ -2652,8 +2706,12 @@
   // Serialize one session to the shared plain-text export format: title, rule,
   // message body (with inline ✦ comments), and an optional notes section.
   // Used by both single-session "save" and multi-session "export all".
-  function sessionToText(sNames, sMessages, notes) {
-    const title = dialogueFilename(sNames);
+  function sessionToText(sNames, sMessages, notes, customTitle) {
+    // A renamed dialogue keeps its name in the file: "deadline week — dialogue
+    // between A and B". The importer reads it back from this line.
+    const title = customTitle
+      ? `${customTitle} — ${dialogueFilename(sNames)}`
+      : dialogueFilename(sNames);
     const rule  = '—'.repeat(Math.max(32, title.length + 8));
     const body  = (sMessages || []).map(m => {
       const speaker = sNames[m.person] || `Part ${m.person + 1}`;
@@ -2670,6 +2728,47 @@
     const notesText = notesAsText(notes);
     const notesSection = notesText ? `\n\n${rule}\nNotes\n${rule}\n\n${notesText}` : '';
     return `${title}\n${rule}\n\n${body || '(empty)'}\n\n${rule}${notesSection}`;
+  }
+
+  // ── Complete copy inside exported files ──
+  // The readable text can't carry sketches, timestamps or multi-line part notes.
+  // So exported files end with one line of data holding the dialogues exactly
+  // as stored, and "load conversation" uses that when it's there. The text
+  // above it stays the thing a person reads.
+  function withDataBlock(text, data) {
+    return `${text}\n\n${'═'.repeat(48)}\n`
+      + 'Everything below lets "load conversation" restore this file exactly — '
+      + 'titles, sketches, part notes and times included. You can ignore it.\n'
+      + 'If you edit the dialogue above and want those edits loaded, delete from the ═ line down.\n'
+      + `inner-dialogues-data:v1\n${JSON.stringify(data)}\n`;
+  }
+
+  // Split a file into its readable part and its data block (if it has one).
+  // The block only counts when the marker is on its own line and followed by
+  // the data at the very end of the file, so a message that happens to contain
+  // the marker text can't trigger it.
+  function splitDataBlock(text) {
+    const m = String(text).match(/\ninner-dialogues-data:v1\r?\n(\{[\s\S]*\})\s*$/);
+    if (!m) return { readable: String(text), data: null };
+    const before = text.slice(0, m.index);
+    // Cut the readable part at the ═ rule that introduces the block, so the
+    // explanation lines never get read as dialogue.
+    const lines = before.split(/\r?\n/);
+    let cut = lines.length;
+    for (let k = lines.length - 1; k >= 0; k--) {
+      if (/^═{8,}$/.test(lines[k].trim())) { cut = k; break; }
+    }
+    let data = null;
+    try { data = JSON.parse(m[1]); } catch (_) { data = null; }
+    return { readable: lines.slice(0, cut).join('\n'), data };
+  }
+
+  // The data for one dialogue: the dialogue itself plus the part notes that
+  // belong to its parts.
+  function dialogueData(session) {
+    const parts = {};
+    for (const n of session.names || []) if (state.parts?.[n]) parts[n] = state.parts[n];
+    return { v: 1, sessions: { [session.id]: session }, archived: {}, activeId: session.id, parts };
   }
 
   // Trigger a .txt download from a string.
@@ -2972,7 +3071,9 @@
   // ── Save conversation ──
   document.getElementById('save-btn').addEventListener('click', () => {
     const session = current();
-    downloadTextFile(`${dialogueFilename()}.txt`, sessionToText(names, messages, session?.notes));
+    if (!session) return;
+    const text = sessionToText(names, messages, session.notes, session.title);
+    downloadTextFile(`${session.title || dialogueFilename()}.txt`, withDataBlock(text, dialogueData(session)));
     markExported();
   });
 
@@ -3174,6 +3275,9 @@
 
   // Grow to fit what's written, up to the CSS max-height.
   function autoGrowInput() {
+    // Empty means one line. Measuring an empty box counts the wrapped
+    // "Speaking as …" hint as if it were text, and the box stayed tall.
+    if (!msgInputEl.value) { msgInputEl.style.height = ''; return; }
     msgInputEl.style.height = 'auto';
     msgInputEl.style.height = `${msgInputEl.scrollHeight}px`;
   }
@@ -3427,6 +3531,7 @@
       b.classList.toggle('active', i === idx);
     });
     updateInputPlaceholder();
+    autoGrowInput();
     msgInputEl.focus();
   }
 
@@ -4045,8 +4150,32 @@
             }
             m.person = unknownIdx;
           }
+          // A sketch is only ever an inline image. A file could put a web
+          // address here instead, and the app would fetch it — telling a
+          // stranger's server this device's IP. Anything else becomes text.
+          if (m.type === 'sketch' && !(typeof m.dataUrl === 'string'
+              && /^data:image\/(png|jpeg|webp);base64,/.test(m.dataUrl))) {
+            m.type = undefined;
+            m.text = '[sketch]';
+            delete m.dataUrl;
+          }
           if (m.type !== 'sketch' && typeof m.text !== 'string') m.text = String(m.text ?? '');
+          if (typeof m.comment !== 'string') m.comment = m.comment ? String(m.comment) : '';
+          if (m.ts !== undefined && !Number.isFinite(m.ts)) delete m.ts;
         }
+        s.names = s.names.map(n => String(n ?? '').slice(0, 60) || 'Part');
+        // Notes: the old single-string shape is still valid (normalizeSession
+        // converts it); in the list shape, drop anything that isn't a note.
+        if (Array.isArray(s.notes)) {
+          s.notes = s.notes.filter(isMap);
+          for (const n of s.notes) {
+            if (typeof n.content !== 'string') n.content = String(n.content ?? '');
+            if (!n.id) n.id = Math.random().toString(36).slice(2, 10);
+          }
+        } else if (typeof s.notes !== 'string') {
+          s.notes = [];
+        }
+        if (s.title !== undefined && typeof s.title !== 'string') delete s.title;
         out[id] = s;
       }
       return out;
@@ -4577,7 +4706,7 @@
   function copyAll() {
     const session = current();
     if (!session || !messages.length) { showToast('nothing to copy yet'); return; }
-    const text = sessionToText(names, messages, currentNote());
+    const text = sessionToText(names, messages, session.notes, session.title);
     navigator.clipboard.writeText(text)
       .then(() => showToast('dialogue copied to your clipboard'))
       .catch(() => showToast('couldn’t copy — check clipboard permissions'));
@@ -4978,11 +5107,15 @@
   function stateToText(st) {
     const sessions = [...Object.values(st.sessions || {}), ...Object.values(st.archived || {})];
     if (sessions.length === 0) return '';
-    const blocks = sessions.map(s => sessionToText(s.names || [], s.messages || [], s.notes));
+    const blocks = sessions.map(s => sessionToText(s.names || [], s.messages || [], s.notes, s.title));
     // Per-part notes captured on the parts map ride along as a final block.
     const partsBlock = partsAsText(st.parts);
     if (partsBlock) blocks.push(partsBlock);
-    return blocks.join('\n\n' + '═'.repeat(48) + '\n\n');
+    const text = blocks.join('\n\n' + '═'.repeat(48) + '\n\n');
+    return withDataBlock(text, {
+      v: 1, sessions: st.sessions || {}, archived: st.archived || {},
+      activeId: st.activeId || null, parts: st.parts || {},
+    });
   }
 
   function exportAllConversations() {

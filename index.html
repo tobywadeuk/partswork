@@ -1885,10 +1885,10 @@
   // ── Setup: dynamic name fields ──
   let setupCount = 2;
 
-  function renderNameFields() {
+  function renderNameFields(valuesOverride) {
     const container = document.getElementById('name-fields');
     // Preserve any values already typed before wiping the DOM
-    const saved = Array.from(container.querySelectorAll('input')).map(el => el.value);
+    const saved = valuesOverride || Array.from(container.querySelectorAll('input')).map(el => el.value);
     container.innerHTML = '';
 
     for (let i = 0; i < setupCount; i++) {
@@ -1917,8 +1917,12 @@
         removeBtn.textContent = '×';
         removeBtn.title = 'Remove person';
         removeBtn.addEventListener('click', () => {
+          // Drop this row's value specifically — re-rendering with the raw DOM
+          // snapshot would always chop the last row's name instead.
+          const vals = Array.from(container.querySelectorAll('input')).map(el => el.value);
+          vals.splice(i, 1);
           setupCount--;
-          renderNameFields();
+          renderNameFields(vals);
         });
         row.appendChild(removeBtn);
       }
@@ -2323,6 +2327,7 @@
     a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
     a.download = filename;
     a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   }
 
   document.getElementById('image-btn').addEventListener('click', async () => {
@@ -2566,6 +2571,7 @@
       a.download = `${dialogueFilename()}.png`;
       a.href = URL.createObjectURL(blob);
       a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     }, 'image/png');
     markExported();
   });
@@ -2745,10 +2751,12 @@
       actions.append(
         makeActionBtn(ICON_COPY, 'Copy message', () => {
           const msg = messages[msgIdxOf(wrap)];
-          navigator.clipboard.writeText(msg?.text || '').then(() => showToast('copied'));
+          navigator.clipboard.writeText(msg?.text || '')
+            .then(() => showToast('copied'))
+            .catch(() => showToast('couldn’t copy — check clipboard permissions'));
         }),
         makeActionBtn(ICON_COMMENT, 'Add note', () => toggleComment(msgIdxOf(wrap), wrap)),
-        makeActionBtn(ICON_EDIT,    'Edit',     () => editMessage(msgIdxOf(wrap), bubble)),
+        makeActionBtn(ICON_EDIT,    'Edit',     () => editMessage(bubble)),
         delBtn,
       );
     }
@@ -2770,7 +2778,7 @@
   function startChat() {
     const inputs = document.querySelectorAll('#name-fields input');
     const inputNames = Array.from(inputs).map((el, i) => el.value.trim() || `${placeholderTerm} ${i + 1}`);
-    if (!createSession(inputNames)) return;
+    if (!createSession(inputNames)) { showToast('4 dialogues open — close one first'); return; }
     showApp();
     hydrateActiveSession();
     msgInputEl.focus();
@@ -2988,6 +2996,7 @@
         buildSpeakerRow();
         setActive(names.length - 1);
         refreshPositions();
+        saveSession();   // persist the new speaker — a refresh would otherwise drop them
       } else {
         buildSpeakerRow();
       }
@@ -3096,9 +3105,10 @@
     }
   });
 
-  function editMessage(msgIdx, bubble) {
+  function editMessage(bubble) {
     const textSpan = bubble.querySelector('.msg-text');
     if (!textSpan || textSpan.contentEditable === 'true') return;
+    const wrap = bubble.closest('.msg-wrap');
     const original = textSpan.textContent;
 
     textSpan.contentEditable = 'true';
@@ -3114,17 +3124,24 @@
     function save() {
       textSpan.contentEditable = 'false';
       bubble.style.boxShadow = '';
+      textSpan.removeEventListener('keydown', onKey);   // don't stack handlers across edits
       const newText = textSpan.textContent.trim();
       textSpan.textContent = newText || original;
-      messages[msgIdx].text = textSpan.textContent;
-      saveSession();
+      // Resolve the index at save time — a delete during the edit shifts indexes.
+      const idx = msgIdxOf(wrap);
+      if (messages[idx]) {
+        messages[idx].text = textSpan.textContent;
+        saveSession();
+      }
+    }
+
+    function onKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); textSpan.blur(); }
+      if (e.key === 'Escape') { textSpan.textContent = original; textSpan.blur(); }
     }
 
     textSpan.addEventListener('blur', save, { once: true });
-    textSpan.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); textSpan.blur(); }
-      if (e.key === 'Escape') { textSpan.textContent = original; messages[msgIdx].text = original; textSpan.blur(); }
-    });
+    textSpan.addEventListener('keydown', onKey);
   }
 
   function toggleComment(msgIdx, wrap) {
@@ -3151,17 +3168,21 @@
       saved = true;
       const val = input.value.trim();
       input.remove();
-      messages[msgIdx].comment = val;
+      // Resolve the index at save time — a delete while typing shifts indexes.
+      const idx = msgIdxOf(wrap);
+      if (!messages[idx]) return;
+      messages[idx].comment = val;
       saveSession();
       const old = wrap.querySelector('.msg-comment');
       if (old) old.remove();
-      if (val) renderComment(wrap, msgIdx);
+      if (val) renderComment(wrap, idx);
     }
 
     function cancel() {
       saved = true;
       input.remove();
-      if (messages[msgIdx].comment) renderComment(wrap, msgIdx);
+      const idx = msgIdxOf(wrap);
+      if (messages[idx]?.comment) renderComment(wrap, idx);
     }
 
     input.addEventListener('keydown', e => {
@@ -4095,7 +4116,7 @@
     navigator.clipboard.writeText(text).then(() => {
       showToast('copied — paste into Claude');
       window.open('https://claude.ai', '_blank');
-    });
+    }).catch(() => showToast('couldn’t copy — check clipboard permissions'));
   }
 
   const distilBtn = document.getElementById('distil-btn');

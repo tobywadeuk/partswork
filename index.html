@@ -1692,11 +1692,14 @@
     #app { position: fixed; bottom: 0; left: 0; right: 0; border-radius: 0; height: 100dvh; max-width: 100%; padding-top: env(safe-area-inset-top, 0px); box-sizing: border-box; }
     .msg-wrap { max-width: 82%; }
     .msg-input, .name-row input, .speaker-new-input { font-size: 16px; }
-    /* Keep the session switcher reachable; tighten the header so it has room. */
+    /* Added to the home screen the app runs full-bleed, so the writing row
+       would otherwise sit under the home indicator. In a normal Safari tab the
+       inset is 0 and this changes nothing. */
+    .bottom { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
     .app-top { gap: 6px; padding: 10px 34px 10px 12px; }
     .header-controls { gap: 6px; }
     .header-btn { padding: 4px 2px; font-size: 11px; }
-    /* Collapse the export actions into the ⋯ menu so tabs get breathing room. */
+    /* Only reset and notes stay out here; the rest go under the ⋯ menu. */
     #copy-btn, .export-wrap { display: none; }
     .overflow-only { display: inline-flex !important; }
     /* The name is context, not a control — it gives up room first. */
@@ -4052,16 +4055,18 @@
       const validIds = sessionList();
       state.activeId = validIds[validIds.length - 1] || null;
     }
-    collapseToSingleSession();
+    migratedToSingleSession = collapseToSingleSession();
     return true;
   }
 
   // Earlier versions kept up to four dialogues open at once. Now there is one.
   // Anything else you had open is filed into the archive rather than dropped —
   // it's all still there under "past dialogues".
+  let migratedToSingleSession = false;
+
   function collapseToSingleSession() {
     const ids = sessionList();
-    if (ids.length <= 1) return;
+    if (ids.length <= 1) return false;
     const keep = state.sessions[state.activeId] ? state.activeId : ids[ids.length - 1];
     for (const id of ids) {
       if (id === keep) continue;
@@ -4069,6 +4074,7 @@
       delete state.sessions[id];
     }
     state.activeId = keep;
+    return true;
   }
 
   function createSession(initialNames) {
@@ -4452,6 +4458,8 @@
         if (source !== 'idb') {
           persistState(); // migrate/recover into the primary store
           if (source !== 'legacy') showToast('sessions restored from backup');
+        } else if (migratedToSingleSession) {
+          persistState(); // fold the old multi-tab shape into storage for good
         }
         showApp();
         hydrateActiveSession();
@@ -4539,12 +4547,16 @@
   // ON: single contained square with inner dot (focused — click to exit back to multi-panel).
   const FOCUS_ICON_IN  = `<svg viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>`;
   const FOCUS_ICON_OUT = `<svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1.5"/><rect x="7" y="7" width="2" height="2" fill="currentColor" stroke="none"/></svg>`;
-  function setFocusMode(on) {
+  // `persist: false` changes the mode for now without overwriting the user's
+  // preference — the example turns the chrome on temporarily, and someone who
+  // lives in focus mode shouldn't find it switched off for having looked.
+  function setFocusMode(on, { persist = true } = {}) {
     appEl.classList.toggle('focus-mode', on);
     document.body.classList.toggle('focus-mode-on', on);
     focusBtn.innerHTML = on ? FOCUS_ICON_IN : FOCUS_ICON_OUT;
-    focusBtn.title = on ? 'exit focus mode' : 'focus mode — hide tabs, controls, and notes';
+    focusBtn.title = on ? 'exit focus mode' : 'focus mode — hide the controls and notes';
     focusBtn.classList.toggle('active', on);
+    if (!persist) return;
     try { localStorage.setItem(FOCUS_MODE_KEY, on ? '1' : '0'); } catch (_) {}
   }
   focusBtn.addEventListener('click', () => {
@@ -4939,7 +4951,7 @@
     msgInputEl.placeholder = 'start your own to write here';
     msgInputEl.readOnly = true;
     showApp();
-    setFocusMode(false);          // the example is the one time the chrome helps
+    setFocusMode(false, { persist: false });   // the example is the one time the chrome helps
     // Read it from the beginning, not the end. Deferred because the scroll
     // position only means anything once layout has settled.
     msgsEl.scrollTop = 0;
@@ -4957,6 +4969,7 @@
     msgsEl.innerHTML = '';
     msgInputEl.readOnly = false;
     msgInputEl.placeholder = 'Write something…';
+    setFocusMode(localStorage.getItem(FOCUS_MODE_KEY) !== '0', { persist: false });
     if (toSetup) goToSetup();
   }
 

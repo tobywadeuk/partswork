@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Nothing here — Inner Dialogues</title>
+<meta name="robots" content="noindex" />
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<meta name="theme-color" content="#f5f0e8" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#17130f" media="(prefers-color-scheme: dark)" />
+<style>
+  /* Self-hosted, like the app — this page makes no external requests either. */
+  @font-face {
+    font-family: 'Lora';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/fonts/lora-400-latin.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'DM Mono';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/fonts/dm-mono-400-latin.woff2') format('woff2');
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f0e8;
+    --bg-2: #ece2d3;
+    --paper: #fdfaf4;
+    --ink: #241c14;
+    --ink-muted: #6b5e4e;
+    --rule: #e0d8cc;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17130f;
+      --bg-2: #17130f;
+      --paper: #211c17;
+      --ink: #efe7da;
+      --ink-muted: #b6a690;
+      --rule: #38302a;
+      color-scheme: dark;
+    }
+  }
+
+  body {
+    font-family: 'Lora', Georgia, serif;
+    background: linear-gradient(165deg, var(--bg), var(--bg-2));
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  main {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    box-shadow: 0 14px 46px rgba(74, 54, 34, 0.11), 0 2px 8px rgba(74, 54, 34, 0.05);
+    padding: 44px 40px 38px;
+    max-width: 380px;
+    width: 100%;
+    text-align: center;
+  }
+
+  h1 { font-size: 22px; font-weight: 400; letter-spacing: -0.3px; margin-bottom: 14px; }
+
+  p {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    line-height: 1.75;
+    color: var(--ink-muted);
+    margin-bottom: 26px;
+  }
+
+  a {
+    display: inline-block;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    padding: 11px 24px;
+    border-radius: 8px;
+    background: var(--ink);
+    color: var(--paper);
+  }
+  a:focus-visible { outline: 2px solid var(--ink-muted); outline-offset: 3px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Nothing here</h1>
+  <p>That page doesn't exist. Whatever you've already written is untouched — it lives on your device, not on this address.</p>
+  <a href="/">Back to your dialogue →</a>
+</main>
+</body>
+</html>

@@ -122,7 +122,7 @@
     --paper: #fdfaf4;
     --ink: #241c14;            /* warm espresso — softer than near-black on cream */
     --ink-muted: #6b5e4e;
-    --ink-faint: #b8a898;
+    --ink-faint: #978472;   /* 3.44:1 on paper — was #b8a898 at 2.22:1 */
     --rule: #e0d8cc;
     --radius: 14px;
     --radius-sm: 8px;
@@ -152,7 +152,7 @@
     --paper: #211c17;
     --ink: #efe7da;
     --ink-muted: #b6a690;
-    --ink-faint: #756758;
+    --ink-faint: #8f7f6f;   /* 4.37:1 on paper — was #756758 at 3.09:1 */
     --rule: #38302a;
     --bubble-mix: 30%;
     --bubble-border: transparent;
@@ -364,12 +364,12 @@
     font-family: 'DM Mono', monospace;
     font-size: 10px;
     letter-spacing: 0.06em;
-    color: var(--ink-faint);
+    color: var(--ink-muted);
     cursor: pointer;
     text-align: center;
     transition: color 0.15s;
   }
-  .guide-toggle:hover { color: var(--ink-muted); }
+  .guide-toggle:hover { color: var(--ink); }
 
   .guide {
     margin-top: 14px;
@@ -420,7 +420,7 @@
     font-family: 'DM Mono', monospace;
     font-size: 11px;
     letter-spacing: 0.04em;
-    color: var(--ink-faint);
+    color: var(--ink-muted);
     background: none;
     border: none;
     cursor: pointer;
@@ -438,7 +438,7 @@
     transition: width 0.2s;
   }
 
-  .load-convo-btn:hover { color: var(--ink-muted); }
+  .load-convo-btn:hover { color: var(--ink); }
   .load-convo-btn:hover::after { width: 100%; }
 
   /* ── Chat App ── */
@@ -511,10 +511,10 @@
     font-family: 'DM Mono', monospace;
     font-size: 10px;
     letter-spacing: 0.04em;
-    color: var(--ink-faint);
+    color: var(--ink-muted);
     transition: color 0.15s, border-color 0.15s;
   }
-  #archive-btn:hover { color: var(--ink-muted); border-color: var(--ink-faint); }
+  #archive-btn:hover { color: var(--ink); border-color: var(--ink-muted); }
 
   /* ── Export dropdown ── */
   .export-wrap { position: relative; display: inline-flex; }
@@ -557,10 +557,10 @@
     font-family: 'DM Mono', monospace;
     font-size: 10px;
     letter-spacing: 0.04em;
-    color: var(--ink-faint);
+    color: var(--ink-muted);
     transition: color 0.15s;
   }
-  .setup-back-btn:hover { color: var(--ink-muted); }
+  .setup-back-btn:hover { color: var(--ink); }
 
   /* Combined top bar — session tabs (left) + app controls (right) on one row.
      Right padding reserves space for the absolutely-positioned focus icon. */
@@ -621,7 +621,7 @@
   .header-btn {
     font-family: 'DM Mono', monospace;
     font-size: 12px;
-    color: var(--ink-faint);
+    color: var(--ink-muted);
     background: none;
     border: none;
     cursor: pointer;
@@ -630,7 +630,7 @@
     transition: color 0.2s;
   }
 
-  .header-btn:hover { color: var(--ink-muted); }
+  .header-btn:hover { color: var(--ink); }
   .header-btn.active { color: var(--ink); }
 
   /* ── Focus button (absolute icon, top-right of the #app card) ── */
@@ -965,6 +965,13 @@
     body::before,
     .empty-orb,
     .msg-wrap { animation: none; }
+    /* Transitions are subtle but they still move; cut them to a blink rather
+       than to zero so state changes stay perceptible. */
+    *, *::before, *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+    }
   }
 
   .msg-wrap {
@@ -1459,78 +1466,6 @@
     stroke-linejoin: round;
   }
 
-  /* ── First-run tour ── */
-  .tour-highlight {
-    position: fixed;
-    z-index: 480;
-    border: 2px solid var(--paper);
-    border-radius: 8px;
-    pointer-events: none;
-    box-shadow: 0 0 0 9999px rgba(26, 20, 16, 0.38);
-    animation: fadeUp 0.25s ease;
-  }
-
-  .tour-tooltip {
-    position: fixed;
-    z-index: 500;
-    background: var(--paper);
-    border: 1px solid var(--rule);
-    border-radius: 12px;
-    padding: 16px 18px 14px;
-    max-width: 290px;
-    box-shadow: 0 10px 36px rgba(0,0,0,0.18);
-    animation: fadeUp 0.25s ease;
-  }
-
-  .tour-counter {
-    font-family: 'DM Mono', monospace;
-    font-size: 9px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--ink-faint);
-    margin-bottom: 8px;
-  }
-
-  .tour-text {
-    margin: 0 0 14px;
-    font-family: 'DM Mono', monospace;
-    font-size: 12px;
-    line-height: 1.6;
-    color: var(--ink);
-  }
-
-  .tour-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .tour-skip {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--ink-faint);
-    padding: 4px 0;
-    transition: color 0.15s;
-  }
-  .tour-skip:hover { color: var(--ink-muted); }
-
-  .tour-next {
-    background: var(--ink);
-    color: var(--paper);
-    border: none;
-    padding: 7px 16px;
-    border-radius: 6px;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    cursor: pointer;
-    transition: opacity 0.15s;
-  }
-  .tour-next:hover { opacity: 0.85; }
 
   /* Vertical pans stay native (scrolling the message list on touch);
      horizontal movement is ours for drag-to-reassign. */
@@ -2139,6 +2074,7 @@
   // inconsistent. It costs one call and nothing breaks if it's refused.
   let storagePersisted = null;   // true | false | null (unknown/unsupported)
   async function requestPersistence() {
+    if (storagePersisted === true) return;
     if (!navigator.storage?.persist) return;
     try {
       storagePersisted = await navigator.storage.persisted()
@@ -3914,10 +3850,11 @@
     if (Object.keys(snapshot.sessions).length > 0 || Object.keys(snapshot.archived || {}).length > 0) {
       await store.set('backup', snapshot);
     }
+    // Chrome and Firefox weigh engagement when deciding, so asking again after
+    // the first real write lands better than asking only at boot.
     if (!persistAsked) {
       persistAsked = true;
-      // Ask the browser to exempt this origin from storage-pressure eviction.
-      try { navigator.storage?.persist?.(); } catch (_) {}
+      requestPersistence();
     }
   }
 
@@ -3929,7 +3866,7 @@
     // every keystroke. One warning a minute is enough to prompt a manual export.
     if (Date.now() - lastSaveErrorAt > 60000) {
       lastSaveErrorAt = Date.now();
-      showToast('couldn’t save — export your conversations now (txt button)', 6000);
+      showToast('couldn’t save — export a copy now (export → text)', 6000);
     }
   }
 
@@ -4457,7 +4394,7 @@
       if (loaded && current()) {
         if (source !== 'idb') {
           persistState(); // migrate/recover into the primary store
-          if (source !== 'legacy') showToast('sessions restored from backup');
+          if (source !== 'legacy') showToast('your dialogues were restored from a backup');
         } else if (migratedToSingleSession) {
           persistState(); // fold the old multi-tab shape into storage for good
         }
@@ -4634,6 +4571,9 @@
   }
 
   let partsMapRaf = null;
+  // Set when the map is drawn without an animation loop (reduced motion), so a
+  // drag still has something to trigger a redraw.
+  let partsMapRepaint = null;
 
   function cancelPartsMapAnimation() {
     if (partsMapRaf) cancelAnimationFrame(partsMapRaf);
@@ -4765,6 +4705,7 @@
           const p = clientToSvg(ev.clientX, ev.clientY);
           node.baseX = node.x = p.x + offX;
           node.baseY = node.y = p.y + offY;
+          partsMapRepaint?.();   // no drift loop under reduced motion, so redraw here
         }
         function onUp(ev) {
           node.dragging = false;
@@ -4783,12 +4724,8 @@
     }
 
     // Animate — dragging nodes hold their position, others drift
-    function step(t) {
+    function paint() {
       for (const n of nodes) {
-        if (!n.dragging) {
-          n.x = n.baseX + Math.sin(t * n.speedX + n.phaseX) * n.ampX;
-          n.y = n.baseY + Math.cos(t * n.speedY + n.phaseY) * n.ampY;
-        }
         n.circle.setAttribute('cx', n.x);
         n.circle.setAttribute('cy', n.y);
         n.label.setAttribute('x', n.x);
@@ -4800,8 +4737,27 @@
         l.el.setAttribute('x2', l.to.x);
         l.el.setAttribute('y2', l.to.y);
       }
+    }
+
+    function step(t) {
+      for (const n of nodes) {
+        if (n.dragging) continue;
+        n.x = n.baseX + Math.sin(t * n.speedX + n.phaseX) * n.ampX;
+        n.y = n.baseY + Math.cos(t * n.speedY + n.phaseY) * n.ampY;
+      }
+      paint();
       partsMapRaf = requestAnimationFrame(step);
     }
+
+    // The nodes drift gently for as long as the map is open. For anyone who has
+    // asked for less motion, draw them once at rest and run no loop at all —
+    // the map reads exactly the same standing still.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      paint();
+      partsMapRepaint = paint;   // dragging still needs to redraw
+      return;
+    }
+    partsMapRepaint = null;
     partsMapRaf = requestAnimationFrame(step);
   }
 

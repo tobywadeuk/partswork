@@ -1920,6 +1920,14 @@
   const LEGACY_SESSION_KEY = 'partswork_session';
   const LEGACY_NOTES_KEY = 'partswork_notes';
 
+  // localStorage throws outright when a browser blocks site storage ("block
+  // all cookies"). Every read that isn't already guarded goes through here.
+  function lsGet(key) {
+    try { return localStorage.getItem(key); } catch (_) { return null; }
+  }
+  let storageBlocked = false;
+  try { localStorage.getItem('inner_dialogues_probe'); } catch (_) { storageBlocked = true; }
+
   // ── Crash guard ──
   // Boot is the dangerous moment: an exception before the UI renders used to
   // leave a blank page, which looks exactly like "my writing was deleted".
@@ -1928,21 +1936,34 @@
   // half-initialised app, so it works even if the crash happened first.
   let crashShown = false;
 
-  async function rawStateDump() {
-    const tryRead = async () => {
-      if (typeof store !== 'undefined' && store) return await store.get('state');
+  // Read every place a copy could live, each on its own, so one failure can't
+  // hide the others. Deliberately avoids the app's own driver objects: if the
+  // crash happened while the script was still loading they may not exist yet.
+  async function rawStateSources() {
+    const found = {};
+    const idbGet = key => new Promise(res => {
       try {
-        const r = await idbDriver.get('state');
-        if (r) return r;
-      } catch (_) {}
-      try { return JSON.parse(localStorage.getItem(STATE_KEY) || 'null'); } catch (_) { return null; }
-    };
-    let data = null;
-    try { data = await tryRead(); } catch (_) {}
-    if (!data) {
-      try { data = JSON.parse(localStorage.getItem(BACKUP_KEY) || 'null'); } catch (_) {}
-    }
-    return data;
+        const r = indexedDB.open('inner_dialogues', 1);
+        r.onupgradeneeded = () => { try { r.transaction.abort(); } catch (_) {} res(undefined); };
+        r.onerror = () => res(undefined);
+        r.onsuccess = () => {
+          try {
+            const db = r.result;
+            if (!db.objectStoreNames.contains('kv')) { db.close(); res(undefined); return; }
+            const q = db.transaction('kv', 'readonly').objectStore('kv').get(key);
+            q.onsuccess = () => { db.close(); res(q.result); };
+            q.onerror = () => { db.close(); res(undefined); };
+          } catch (_) { res(undefined); }
+        };
+      } catch (_) { res(undefined); }
+    });
+    const lsGetJSON = key => { try { return JSON.parse(localStorage.getItem(key) || 'null') || undefined; } catch (_) { return undefined; } };
+    found.primary = await idbGet('state');
+    found.backup = await idbGet('backup');
+    found.localPrimary = lsGetJSON(STATE_KEY);
+    found.localBackup = lsGetJSON(BACKUP_KEY);
+    for (const k of Object.keys(found)) if (found[k] === undefined) delete found[k];
+    return found;
   }
 
   function showCrashScreen(err) {
@@ -1973,24 +1994,33 @@
       const btn = wrap.querySelector('#crash-export');
       btn.disabled = true;
       btn.textContent = 'preparing…';
-      // Prefer the real text export; fall back to raw JSON, which is ugly but
-      // complete and can always be read back by hand.
-      try {
-        if (typeof exportAllConversations === 'function') {
-          exportAllConversations();
-          btn.textContent = 'downloaded';
-          return;
-        }
-      } catch (_) {}
-      const data = await rawStateDump();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob(
-        [JSON.stringify(data ?? { error: 'nothing readable in storage' }, null, 2)],
-        { type: 'application/json' },
-      ));
-      a.download = `inner-dialogues-recovery-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      // Build the file from what's on disk, not from the app's memory. In the
+      // usual crash the app never finished loading, so its memory is empty —
+      // this used to download nothing and still say "downloaded".
+      const sources = await rawStateSources();
+      const date = new Date().toISOString().slice(0, 10);
+      let best = null;
+      for (const k of ['primary', 'backup', 'localPrimary', 'localBackup']) {
+        const v = sources[k] && salvageState(sources[k]);
+        if (v && !stateIsEmpty(v)) { best = v; break; }
+      }
+      const save = (name, text, type) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([text], { type }));
+        a.download = name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      };
+      if (!Object.keys(sources).length) {
+        btn.textContent = 'nothing stored on this device';
+        return;
+      }
+      // Text first: it's readable, and "load conversation" can take it back
+      // in. If building it fails, the raw copy still has every byte.
+      let text = null;
+      if (best) { try { text = stateToText(best); } catch (_) { text = null; } }
+      if (text) save(`inner-dialogues-recovery-${date}.txt`, text, 'text/plain');
+      else save(`inner-dialogues-recovery-${date}.json`, JSON.stringify(sources, null, 2), 'application/json');
       btn.textContent = 'downloaded';
     });
   }
@@ -2056,6 +2086,7 @@
   const LS_KEY_MAP = { state: STATE_KEY, backup: BACKUP_KEY };
   const lsDriver = {
     async get(k) {
+      if (storageBlocked) return undefined;
       const raw = localStorage.getItem(LS_KEY_MAP[k]);
       return raw ? JSON.parse(raw) : undefined;
     },
@@ -2117,7 +2148,10 @@
     { dot: '#5a7878', bg: '#dde6e6' },
   ];
 
-  function palette(idx) { return PALETTE[idx % PALETTE.length]; }
+  function palette(idx) {
+    const n = PALETTE.length;
+    return PALETTE[((Number(idx) % n) + n) % n] || PALETTE[0];
+  }
   function position(idx) {
     const layouts = {
       2: ['left', 'right'],
@@ -2434,7 +2468,8 @@
 
   // ── Load conversation ──
   // Parses the same format sessionToText writes, so export → import round-trips:
-  // "Name: text" lines (with continuation lines for multiline messages),
+  // "Name: text" lines (later lines of the same message indented 4 spaces;
+  // files from before that still work, their extra lines just aren't indented),
   // "    ✦ comment" lines (continuations indented 6 spaces), a Notes section
   // (multiple notes split on \n\n---\n\n), and ═-rules between sessions.
   function parseConversationText(text) {
@@ -2476,6 +2511,14 @@
       if (cm && lastMsg) { lastMsg.comment = cm[1]; lastWasComment = true; continue; }
       if (lastWasComment && lastMsg && /^ {6}/.test(line)) {
         lastMsg.comment += '\n' + line.slice(6);
+        continue;
+      }
+      // An indented line is the next line of the message above — checked before
+      // the "Name: text" pattern so "    Rule one: never quit" stays text. Runs
+      // before the blank-line check too, so an indent-only line keeps a
+      // paragraph break.
+      if (lastMsg && !lastWasComment && /^ {4}/.test(line)) {
+        lastMsg.text += '\n' + line.slice(4);
         continue;
       }
 
@@ -2614,9 +2657,14 @@
     const rule  = '—'.repeat(Math.max(32, title.length + 8));
     const body  = (sMessages || []).map(m => {
       const speaker = sNames[m.person] || `Part ${m.person + 1}`;
-      const line = m.type === 'sketch' ? `${speaker}: [sketch]` : `${speaker}: ${m.text}`;
+      // Lines after the first are indented 4 spaces. Unindented, a second line
+      // like "Rule one: never quit" read back as a new speaker called "Rule
+      // one" — and multi-line messages are normal now the box is a textarea.
+      // The indent also keeps blank lines between paragraphs.
+      const text = m.type === 'sketch' ? '[sketch]' : String(m.text).split('\n').join('\n    ');
+      const line = `${speaker}: ${text}`;
       // Comment continuation lines are indented 6 spaces so the importer can
-      // tell them apart from message-text continuation lines (0 indent).
+      // tell them apart from message-text continuation lines (4 spaces).
       return m.comment ? `${line}\n    ✦ ${String(m.comment).split('\n').join('\n      ')}` : line;
     }).join('\n\n');
     const notesText = notesAsText(notes);
@@ -2642,8 +2690,8 @@
     const key = `${w}x${h}`;
     if (canvasCapCache.has(key)) return canvasCapCache.get(key);
     let good = false;
+    const c = document.createElement('canvas');
     try {
-      const c = document.createElement('canvas');
       c.width = w;
       c.height = h;
       const ctx = c.getContext('2d');
@@ -2654,6 +2702,11 @@
         good = ctx.getImageData(0, h - 1, 1, 1).data[3] === 255;
       }
     } catch (_) { good = false; }
+    // iOS counts canvas memory against a fixed budget until garbage collection
+    // gets round to it. Shrinking the probe frees it now, so the real export
+    // straight after isn't refused for memory the probe is still holding.
+    c.width = 0;
+    c.height = 0;
     canvasCapCache.set(key, good);
     return good;
   }
@@ -3444,6 +3497,9 @@
 
     scrollMessagesToBottom();
     msgInputEl.focus();
+    // Checked here, not only at boot: someone who writes one long evening and
+    // comes back ten days later never sees a second boot before Safari's purge.
+    maybeShowHomescreenHint();
   }
 
   // "Reset" files the current dialogue under past dialogues and drops you back
@@ -3489,7 +3545,7 @@
       textSpan.contentEditable = 'false';
       bubble.style.boxShadow = '';
       textSpan.removeEventListener('keydown', onKey);   // don't stack handlers across edits
-      const newText = textSpan.textContent.trim();
+      const newText = textSpan.innerText.trim();   // keeps line breaks that arrive as <br>
       textSpan.textContent = newText || original;
       // Resolve the index at save time — a delete during the edit shifts indexes.
       const idx = msgIdxOf(wrap);
@@ -3908,6 +3964,10 @@
   }
 
   function persistState() {
+    // With the crash screen up, what's in memory may be empty or half-loaded.
+    // The app underneath can still be reached by keyboard; don't let anything
+    // reached that way write over what's on disk.
+    if (crashShown) return;
     if (saveDirty) return; // a flush is already queued; it will pick up this change
     saveDirty = true;
     saveChain = saveChain.then(flushState).catch(onSaveError);
@@ -3956,37 +4016,68 @@
     } catch (_) { return false; }
   }
 
-  // Shape check for a stored state blob (works for both structured-clone
-  // objects from IndexedDB and JSON-parsed legacy localStorage values).
-  // Valid shape: { sessions: {<id>: <object>, ...}, activeId: string|null }.
-  function validState(parsed) {
-    if (!parsed || typeof parsed !== 'object') return false;
-    if (!parsed.sessions || typeof parsed.sessions !== 'object' || Array.isArray(parsed.sessions)) return false;
-    if (parsed.archived !== undefined && (!parsed.archived || typeof parsed.archived !== 'object' || Array.isArray(parsed.archived))) return false;
-    const open = Object.keys(parsed.sessions);
-    const arch = Object.keys(parsed.archived || {});
-    // Some data must exist somewhere — a state with only archived dialogues is valid.
-    if (!open.length && !arch.length) return false;
-    // Each entry must at least be a non-null object
-    if (open.some(id => !parsed.sessions[id] || typeof parsed.sessions[id] !== 'object')) return false;
-    if (arch.some(id => !parsed.archived[id] || typeof parsed.archived[id] !== 'object')) return false;
-    return true;
+  // Clean up a stored state blob instead of judging it all-or-nothing. This
+  // used to reject the entire store if a single dialogue entry was malformed —
+  // the app then booted looking empty, and the first thing written overwrote
+  // every dialogue in both the primary copy and the backup. Now a bad entry is
+  // dropped on its own, repairable fields are repaired, and only a blob whose
+  // basic shape is wrong counts as unreadable.
+  // Returns the cleaned state, or null if the shape is beyond repair.
+  function salvageState(raw) {
+    const isMap = b => !!b && typeof b === 'object' && !Array.isArray(b);
+    if (!isMap(raw) || !isMap(raw.sessions)) return null;
+    if (raw.archived !== undefined && !isMap(raw.archived)) return null;
+    const clean = map => {
+      const out = {};
+      for (const [id, s] of Object.entries(map || {})) {
+        if (!isMap(s)) continue;
+        if (!Array.isArray(s.names)) s.names = [];
+        s.messages = Array.isArray(s.messages) ? s.messages.filter(isMap) : [];
+        // A message pointing at a part that doesn't exist would crash the
+        // render. Give all such lines one shared "unknown part" rather than
+        // dropping the words (or inventing a part per missing index).
+        if (!s.names.length) s.names.push('Part 1');
+        let unknownIdx = -1;
+        for (const m of s.messages) {
+          if (!Number.isInteger(m.person) || m.person < 0 || m.person >= s.names.length) {
+            if (unknownIdx < 0) {
+              unknownIdx = s.names.length < MAX_PEOPLE ? s.names.push('unknown part') - 1 : s.names.length - 1;
+            }
+            m.person = unknownIdx;
+          }
+          if (m.type !== 'sketch' && typeof m.text !== 'string') m.text = String(m.text ?? '');
+        }
+        out[id] = s;
+      }
+      return out;
+    };
+    return { ...raw, sessions: clean(raw.sessions), archived: clean(raw.archived) };
   }
 
-  // Read one logical key ('state' | 'backup') via the active driver.
+  function stateIsEmpty(s) {
+    return !Object.keys(s.sessions).length && !Object.keys(s.archived || {}).length;
+  }
+
+  // Read one logical key ('state' | 'backup') and say which of four things
+  // happened. "Nothing stored" and "couldn't read what's stored" look the same
+  // to a person — an empty app — but only one of them is safe to write over.
   async function readStoredState(key) {
     await storeReady;
-    try {
-      const v = await store.get(key);
-      return validState(v) ? v : null;
-    } catch (_) { return null; }
+    let raw;
+    try { raw = await store.get(key); }
+    catch (err) { return { status: 'error', err }; }
+    if (raw === undefined || raw === null) return { status: 'absent' };
+    const value = salvageState(raw);
+    if (!value) return { status: 'invalid' };
+    if (stateIsEmpty(value)) return { status: 'absent' };   // deliberately emptied
+    return { status: 'ok', value };
   }
 
   // Read a pre-IndexedDB blob straight from localStorage (migration source).
   function readLegacyState(lsKey) {
     try {
-      const parsed = JSON.parse(localStorage.getItem(lsKey) || 'null');
-      return validState(parsed) ? parsed : null;
+      const value = salvageState(JSON.parse(localStorage.getItem(lsKey) || 'null'));
+      return value && !stateIsEmpty(value) ? value : null;
     } catch (_) { return null; }
   }
 
@@ -4117,21 +4208,31 @@
   function archiveSession(id) {
     const session = state.sessions[id];
     if (!session) return;
-    const position = sessionList().indexOf(id);
     const wasActive = state.activeId === id;
-    const prevActiveId = state.activeId;
     delete state.sessions[id];
     state.archived[id] = session;
     afterOpenSessionRemoved(wasActive);
     updateSetupArchiveLink();
     offerUndo('dialogue archived', () => {
+      // The undo stays on screen for six seconds, and in that time someone can
+      // start a new dialogue or open the example. Undoing used to put this one
+      // back *alongside* the new one, leaving the new one open but invisible
+      // until a reload. One at a time: file away whatever is open now.
+      if (exampleMode) leaveExample({ toSetup: false });
+      if (state.archived[id] !== session) return;   // reopened or deleted meanwhile
+      const filed = sessionList();
+      for (const openId of filed) {
+        state.archived[openId] = state.sessions[openId];
+        delete state.sessions[openId];
+      }
       delete state.archived[id];
-      state.sessions = insertSessionAt(state.sessions, id, session, position);
-      state.activeId = prevActiveId;
+      state.sessions = { [id]: session };
+      state.activeId = id;
       saveSession();
       showApp();              // reverses a possible drop-to-setup
       hydrateActiveSession();
       updateSetupArchiveLink();
+      if (filed.length) showToast('the newer dialogue is under past dialogues');
     });
   }
 
@@ -4417,35 +4518,45 @@
   document.getElementById('archive-btn').addEventListener('click', openArchivePanel);
 
   async function restoreSession() {
-    try {
-      migrateLegacy();
-      // Source order: IndexedDB primary, legacy localStorage primary (pre-IDB
-      // installs — migrated forward on first load), then the rolling backups.
-      // Backups exist so sessions are never lost just because the primary was
-      // evicted or corrupted; every source gets identical normalization.
-      let source = 'idb';
-      let loaded = applyState(await readStoredState('state'));
-      if (!loaded) { source = 'legacy';        loaded = applyState(readLegacyState(STATE_KEY)); }
-      if (!loaded) { source = 'backup';        loaded = applyState(await readStoredState('backup')); }
-      if (!loaded) { source = 'legacy-backup'; loaded = applyState(readLegacyState(BACKUP_KEY)); }
-      if (loaded && current()) {
-        if (source !== 'idb') {
-          persistState(); // migrate/recover into the primary store
-          if (source !== 'legacy') showToast('your dialogues were restored from a backup');
-        } else if (migratedToSingleSession) {
-          persistState(); // fold the old multi-tab shape into storage for good
-        }
-        showApp();
-        hydrateActiveSession();
-        return true;
-      }
-    } catch (e) {
-      console.error('restoreSession failed:', e);
+    try { migrateLegacy(); } catch (_) {}
+
+    const primary = await readStoredState('state');
+    const backup  = primary.status === 'ok' ? { status: 'skipped' } : await readStoredState('backup');
+
+    let source = null;
+    let value = null;
+    if (primary.status === 'ok') {
+      source = 'idb'; value = primary.value;
+    } else if (backup.status === 'ok') {
+      source = 'backup'; value = backup.value;
+    } else if (primary.status === 'absent' && backup.status === 'absent') {
+      // Nothing in the primary store at all. Only now is an old pre-IndexedDB
+      // localStorage copy the newest thing we have. It used to be consulted
+      // whenever a read merely *failed* — and then written over the current
+      // data, primary and backup both.
+      value = readLegacyState(STATE_KEY) || readLegacyState(BACKUP_KEY);
+      if (value) source = 'legacy';
+    } else {
+      // Something is stored and we couldn't read it. Opening an empty app here
+      // is how writing gets destroyed — the first save would overwrite it. Stop,
+      // and let the crash screen offer a reload and a raw download instead.
+      throw new Error('your saved dialogues couldn’t be read just now — reload to try again');
     }
-    return false;
+
+    if (!value) return false;   // genuinely nothing stored: a first visit
+
+    applyState(value);
+    if (source !== 'idb' || migratedToSingleSession) {
+      persistState();           // write the recovered or migrated shape back
+      if (source === 'backup') showToast('your dialogues were restored from a backup');
+    }
+    if (!current()) return false;   // only past dialogues — the setup screen lists them
+    showApp();
+    hydrateActiveSession();
+    return true;
   }
 
-  // ── Distil ──
+  // ── Toast + copy all ──
   let toastTimer = null;
   function showToast(msg, ms = 2200) {
     const t = document.getElementById('toast');
@@ -4507,7 +4618,7 @@
   }
   themeBtn.addEventListener('click', () => setTheme(!document.body.classList.contains('theme-dark')));
   // Stored preference wins; otherwise follow the OS.
-  const storedTheme = localStorage.getItem(THEME_KEY);
+  const storedTheme = lsGet(THEME_KEY);
   if (storedTheme === 'dark' || storedTheme === 'light') {
     setTheme(storedTheme === 'dark');
   } else {
@@ -4537,7 +4648,7 @@
     setFocusMode(!appEl.classList.contains('focus-mode'));
   });
   // Default to focus mode unless the user has explicitly turned it off before
-  if (localStorage.getItem(FOCUS_MODE_KEY) !== '0') setFocusMode(true);
+  if (lsGet(FOCUS_MODE_KEY) !== '0') setFocusMode(true);
 
   document.getElementById('copy-btn').addEventListener('click', copyAll);
 
@@ -4863,23 +4974,29 @@
     overlayClosed();
   }
 
+  // Every dialogue in a state, open and archived, as one text file.
+  function stateToText(st) {
+    const sessions = [...Object.values(st.sessions || {}), ...Object.values(st.archived || {})];
+    if (sessions.length === 0) return '';
+    const blocks = sessions.map(s => sessionToText(s.names || [], s.messages || [], s.notes));
+    // Per-part notes captured on the parts map ride along as a final block.
+    const partsBlock = partsAsText(st.parts);
+    if (partsBlock) blocks.push(partsBlock);
+    return blocks.join('\n\n' + '═'.repeat(48) + '\n\n');
+  }
+
   function exportAllConversations() {
     // Export-all is the backup of record — archived dialogues must be in it.
-    const sessions = [...Object.values(state.sessions || {}), ...Object.values(state.archived || {})];
-    if (sessions.length === 0) return;
-    const blocks = sessions.map(s => sessionToText(s.names || [], s.messages || [], s.notes));
-    const separator = '\n\n' + '═'.repeat(48) + '\n\n';
-    // Per-part notes captured on the parts map ride along as a final block.
-    const partsBlock = partsAsText();
-    if (partsBlock) blocks.push(partsBlock);
+    const text = stateToText(state);
+    if (!text) return;
     const date = new Date().toISOString().slice(0, 10);
-    downloadTextFile(`inner-dialogues-${date}.txt`, blocks.join(separator));
+    downloadTextFile(`inner-dialogues-${date}.txt`, text);
     markExported();
   }
 
   // Serialize the per-part notes (#10) as a trailing "Parts" block for export.
-  function partsAsText() {
-    const rows = Object.entries(state.parts || {})
+  function partsAsText(parts) {
+    const rows = Object.entries(parts || {})
       .map(([name, p]) => [name, (p && p.note || '').trim()])
       .filter(([, note]) => note)
       .map(([name, note]) => `${name} — ${note.split('\n').join(' ')}`);
@@ -4984,7 +5101,7 @@
     msgsEl.innerHTML = '';
     msgInputEl.readOnly = false;
     msgInputEl.placeholder = 'Write something…';
-    setFocusMode(localStorage.getItem(FOCUS_MODE_KEY) !== '0', { persist: false });
+    setFocusMode(lsGet(FOCUS_MODE_KEY) !== '0', { persist: false });
     if (toSetup) goToSetup();
   }
 
@@ -5003,6 +5120,9 @@
       updateSetupArchiveLink();   // setup screen may need its archive entry point
       booted = true;
       if (!restored && !hasSeenExample()) showExample();
+      if (storageBlocked && store === lsDriver) {
+        showToast('this browser is blocking storage — nothing here will be saved, so export before you close', 9000);
+      }
       maybeShowHomescreenHint();
     } catch (err) {
       showCrashScreen(err);

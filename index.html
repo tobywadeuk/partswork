@@ -2633,10 +2633,35 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   }
 
+  // Browsers cap canvas height and total area, and the caps differ wildly —
+  // desktop Chromium takes ~65k pixels of height, iOS Safari far less. Past the
+  // cap toBlob() returns null, so a long dialogue used to produce no file and a
+  // silent throw. Rather than hardcode a guess, ask this device.
+  const canvasCapCache = new Map();
+  function canvasCanTake(w, h) {
+    const key = `${w}x${h}`;
+    if (canvasCapCache.has(key)) return canvasCapCache.get(key);
+    let good = false;
+    try {
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext('2d');
+      if (ctx) {
+        // The bottom row is what falls off the end when a cap is exceeded.
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, h - 2, 2, 2);
+        good = ctx.getImageData(0, h - 1, 1, 1).data[3] === 255;
+      }
+    } catch (_) { good = false; }
+    canvasCapCache.set(key, good);
+    return good;
+  }
+
   document.getElementById('image-btn').addEventListener('click', async () => {
     await document.fonts.ready;
 
-    const SCALE  = 2;
+    let SCALE    = 2;   // halved below if the dialogue is too tall to render
     const W      = 560;
     const PAD_H  = 32;
     const PAD_V  = 28;
@@ -2743,9 +2768,17 @@
       + items.reduce((s, it) => s + NAME_H + it.bubbleH + it.commentH + MSG_GAP, 0)
       + PAD_V - MSG_GAP + notesH;
 
+    // Drop to 1x before giving up — a long dialogue at 1x is still perfectly
+    // readable, and it halves the pixels in each direction.
+    if (!canvasCanTake(W * SCALE, Math.round(totalH * SCALE))) SCALE = 1;
+    if (!canvasCanTake(W * SCALE, Math.round(totalH * SCALE))) {
+      showToast('this dialogue is too long for one image — export it as text instead', 5000);
+      return;
+    }
+
     const canvas = document.createElement('canvas');
     canvas.width  = W * SCALE;
-    canvas.height = totalH * SCALE;
+    canvas.height = Math.round(totalH * SCALE);
     const ctx = canvas.getContext('2d');
     ctx.scale(SCALE, SCALE);
 
@@ -2870,13 +2903,17 @@
     }
 
     canvas.toBlob(blob => {
+      if (!blob) {
+        showToast('couldn’t make the image — export it as text instead', 5000);
+        return;
+      }
       const a = document.createElement('a');
       a.download = `${dialogueFilename()}.png`;
       a.href = URL.createObjectURL(blob);
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      markExported();
     }, 'image/png');
-    markExported();
   });
 
   // ── Save conversation ──
@@ -4609,9 +4646,16 @@
     }
 
     const cx = W / 2, cy = H / 2;
-    const nodeR = 22;
-    const radius = parts.length === 1 ? 0 : Math.min(W, H) * 0.32;
-    const LABEL_DY = nodeR + 18;
+    // Shrink the dots and widen the ring as parts accumulate, or a dozen of
+    // them bunch into an unreadable clump.
+    const nodeR = parts.length > 10 ? 14 : parts.length > 6 ? 18 : 22;
+    const radius = parts.length === 1 ? 0
+      : Math.min(W, H) * (parts.length > 10 ? 0.38 : parts.length > 6 ? 0.35 : 0.32);
+    const LABEL_DY = nodeR + 14;
+    // Long part names ran clean across the middle of the map. The full name is
+    // still in the hover tooltip and on the part's own card.
+    const LABEL_MAX = parts.length > 10 ? 12 : 18;
+    const labelText = n => (n.length > LABEL_MAX ? n.slice(0, LABEL_MAX - 1) + '…' : n);
 
     // Build node objects with idle-float animation state
     const nodeMap = new Map();
@@ -4620,6 +4664,7 @@
       const node = {
         name: p.name,
         color: p.color,
+        ringIndex: i,
         baseX: cx + radius * Math.cos(angle),
         baseY: cy + radius * Math.sin(angle),
         x: 0, y: 0,
@@ -4682,10 +4727,14 @@
         'text-anchor': 'middle',
         fill: cInk,
         'font-family': "'DM Mono', monospace",
-        'font-size': '11', 'letter-spacing': '0.04em',
+        'font-size': parts.length > 10 ? '9' : '11', 'letter-spacing': '0.04em',
         style: 'pointer-events: none; user-select: none;',
       });
-      node.label.textContent = node.name;
+      node.label.textContent = labelText(node.name);
+      // The whole name on hover, since the visible one may be clipped.
+      const nameTitle = svgEl('title', {});
+      nameTitle.textContent = node.name;
+      node.label.appendChild(nameTitle);
       svg.appendChild(node.label);
 
       node.circle.addEventListener('pointerdown', e => {
@@ -4728,8 +4777,18 @@
       for (const n of nodes) {
         n.circle.setAttribute('cx', n.x);
         n.circle.setAttribute('cy', n.y);
-        n.label.setAttribute('x', n.x);
-        n.label.setAttribute('y', n.y + LABEL_DY);
+        // Radially outward from the centre: labels on the left of the ring sit
+        // left of their dot, those at the bottom sit below it, and so on, so
+        // they fan apart instead of stacking in a column. Anchoring by side
+        // keeps a wide label from reaching back across its own dot.
+        const dx = n.x - cx, dy = n.y - cy;
+        const d = Math.hypot(dx, dy) || 1;
+        const ux = dx / d, uy = dy / d;
+        const sideways = Math.abs(ux) > 0.45;
+        const stagger = parts.length > 10 && !sideways && n.ringIndex % 2 ? 12 : 0;
+        n.label.setAttribute('text-anchor', !sideways ? 'middle' : ux > 0 ? 'start' : 'end');
+        n.label.setAttribute('x', n.x + ux * (nodeR + (sideways ? 7 : 0)));
+        n.label.setAttribute('y', n.y + uy * (LABEL_DY + stagger) + (sideways ? 4 : uy > 0 ? 11 : -4));
       }
       for (const l of lineEls) {
         l.el.setAttribute('x1', l.from.x);

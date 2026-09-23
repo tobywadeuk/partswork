@@ -1560,7 +1560,8 @@
     #notes-panel.visible.open { transform: translateY(0); }
   }
 
-  @media (max-width: 480px) {
+  /* Phones, held either way up (a phone on its side is wider than 480px). */
+  @media (max-width: 480px), (pointer: coarse) and (max-height: 500px) {
     body { padding: 0; align-items: center; justify-content: flex-start; padding-top: 40px; min-height: 100dvh; }
     .setup-wrap { padding: 0 16px; width: 100%; max-width: 100%; box-sizing: border-box; }
     #setup { border-radius: var(--radius); padding: 36px 24px 32px; max-width: 100%; }
@@ -1568,7 +1569,7 @@
        under it, and dragging then pulled the app away and showed a blank gap.
        So the app is pinned to whatever is visible (--vv-* set from
        visualViewport in the script), and the page itself can't scroll. */
-    #app { position: fixed; top: 0; left: 0; right: 0; border-radius: 0; height: var(--vv-height, 100dvh); transform: translateY(var(--vv-top, 0px)); max-width: 100%; padding-top: env(safe-area-inset-top, 0px); box-sizing: border-box; }
+    #app { position: fixed; top: 0; left: 0; right: 0; border-radius: 0; height: min(100dvh, var(--vv-height, 100dvh)); transform: translateY(var(--vv-top, 0px)); max-width: 100%; padding-top: env(safe-area-inset-top, 0px); box-sizing: border-box; }
     html:has(body.in-app), body.in-app { overflow: hidden; height: 100%; }
     body.in-app { padding-top: 0; min-height: 0; }
     .messages { overscroll-behavior: contain; }
@@ -2009,15 +2010,37 @@
         t.onabort = () => rej(t.error);
       });
     }
+    // Save `v` only if the stored revision is still `expected` — i.e. no other
+    // tab or window has saved since this one last did. Read and write happen
+    // in one transaction, so two tabs can't both pass the check.
+    async function casSet(k, v, expected, next) {
+      const db = await open();
+      return new Promise((res, rej) => {
+        const t = db.transaction('kv', 'readwrite');
+        const os = t.objectStore('kv');
+        let ok = false;
+        const g = os.get('rev');
+        g.onsuccess = () => {
+          if ((Number(g.result) || 0) !== expected) return;   // someone else saved: write nothing
+          os.put(v, k);
+          os.put(next, 'rev');
+          ok = true;
+        };
+        t.oncomplete = () => res(ok);
+        t.onerror = () => rej(t.error);
+        t.onabort = () => rej(t.error);
+      });
+    }
     return {
       get: k => tx('readonly',  s => s.get(k)),
       set: (k, v) => tx('readwrite', s => s.put(v, k)),
+      casSet,
     };
   })();
 
   // Fallback driver mapping the logical keys onto the original localStorage
   // keys, so pre-IndexedDB data is read and written in place.
-  const LS_KEY_MAP = { state: STATE_KEY, backup: BACKUP_KEY };
+  const LS_KEY_MAP = { state: STATE_KEY, backup: BACKUP_KEY, rev: 'inner_dialogues_rev' };
   const lsDriver = {
     async get(k) {
       if (storageBlocked) return undefined;
@@ -2025,6 +2048,13 @@
       return raw ? JSON.parse(raw) : undefined;
     },
     async set(k, v) { localStorage.setItem(LS_KEY_MAP[k], JSON.stringify(v)); },
+    // localStorage is synchronous, so check-then-write can't interleave.
+    async casSet(k, v, expected, next) {
+      if (!storageBlocked && (Number(localStorage.getItem(LS_KEY_MAP.rev)) || 0) !== expected) return false;
+      localStorage.setItem(LS_KEY_MAP[k], JSON.stringify(v));
+      localStorage.setItem(LS_KEY_MAP.rev, JSON.stringify(next));
+      return true;
+    },
   };
 
   let store = null;
@@ -3217,6 +3247,26 @@
   }
   msgInputEl.addEventListener('input', autoGrowInput);
 
+  // ── Unsent text ──
+  // iPhone reloads background tabs freely; a half-written message shouldn't
+  // go with it. Kept per dialogue, cleared when sent.
+  const DRAFT_KEY = 'inner_dialogues_draft';
+  function saveDraft() {
+    if (exampleMode || !state.activeId) return;
+    try {
+      if (msgInputEl.value) localStorage.setItem(DRAFT_KEY, JSON.stringify({ id: state.activeId, text: msgInputEl.value }));
+      else localStorage.removeItem(DRAFT_KEY);
+    } catch (_) {}
+  }
+  function restoreDraft() {
+    try {
+      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+      msgInputEl.value = d && d.id === state.activeId ? d.text : '';
+    } catch (_) { msgInputEl.value = ''; }
+    autoGrowInput();
+  }
+  msgInputEl.addEventListener('input', saveDraft);
+
   function startChat() {
     leaveExample({ toSetup: false });
     const inputs = document.querySelectorAll('#name-fields input');
@@ -3528,6 +3578,7 @@
     if (!text) return;
     msgInputEl.value = '';
     autoGrowInput();
+    saveDraft();
 
     const empty = document.getElementById('empty-msg');
     if (empty) empty.remove();
@@ -3984,7 +4035,15 @@
     saveDirty = false;
     await storeReady;
     const snapshot = structuredClone(state);
-    await store.set('state', snapshot);
+    const next = knownRev + 1;
+    if (!await store.casSet('state', snapshot, knownRev, next)) {
+      // Another tab or window saved since this one loaded. Writing now would
+      // wipe whatever it saved, so write nothing and say so.
+      showStaleScreen();
+      return;
+    }
+    knownRev = next;
+    announceSave();
     // Only overwrite backup when there is real data (open or archived) — never
     // let an empty state clobber a good backup the user hasn't restored yet.
     if (Object.keys(snapshot.sessions).length > 0 || Object.keys(snapshot.archived || {}).length > 0) {
@@ -4015,6 +4074,7 @@
     // The app underneath can still be reached by keyboard; don't let anything
     // reached that way write over what's on disk.
     if (crashShown) return;
+    if (!revLoaded) return;   // don't save before we know what's on disk
     if (saveDirty) return; // a flush is already queued; it will pick up this change
     saveDirty = true;
     saveChain = saveChain.then(flushState).catch(onSaveError);
@@ -4485,6 +4545,7 @@
     msgsEl.innerHTML = '<div class="empty" id="empty-msg"><span class="empty-orb"></span>The conversation begins here.</div>';
     buildSpeakerRow();
     setActive(0);
+    restoreDraft();
 
     if (messages.length) {
       const empty = document.getElementById('empty-msg');
@@ -4586,6 +4647,7 @@
 
   async function restoreSession() {
     try { migrateLegacy(); } catch (_) {}
+    await loadKnownRev();
 
     const primary = await readStoredState('state');
     const backup  = primary.status === 'ok' ? { status: 'skipped' } : await readStoredState('backup');
@@ -4621,6 +4683,66 @@
     showApp();
     hydrateActiveSession();
     return true;
+  }
+
+  // ── One copy of the truth across tabs ──
+  // Every save bumps a revision number stored beside the data. A tab that
+  // falls behind (an old Safari tab brought back, a second window) reloads
+  // itself before it can write; if it somehow tries anyway, flushState
+  // refuses and showStaleScreen explains. Unsent text survives the reload
+  // (see "Unsent text").
+  let knownRev = 0;
+  let revLoaded = false;
+  async function readStoredRev() {
+    await storeReady;
+    return Number(await store.get('rev')) || 0;
+  }
+  async function loadKnownRev() {
+    knownRev = await readStoredRev();
+    revLoaded = true;
+  }
+  const saveChannel = 'BroadcastChannel' in window ? new BroadcastChannel('inner_dialogues_saves') : null;
+  function announceSave() {
+    try { saveChannel?.postMessage(knownRev); } catch (_) {}
+  }
+  function reloadIfBehind(rev) {
+    if (!booted || crashShown || saveDirty) return;
+    if (rev !== knownRev) { saveDraft(); location.reload(); }
+  }
+  if (saveChannel) saveChannel.onmessage = e => reloadIfBehind(Number(e.data) || 0);
+  async function checkForNewerSave() {
+    if (!booted || crashShown) return;
+    try { reloadIfBehind(await readStoredRev()); } catch (_) {}
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForNewerSave();
+  });
+  window.addEventListener('pageshow', e => { if (e.persisted) checkForNewerSave(); });
+  window.addEventListener('focus', checkForNewerSave);
+
+  function showStaleScreen() {
+    if (crashShown) return;
+    crashShown = true;   // stops every further save from this tab
+    const text = current() ? sessionToText(names, messages, current().notes, current().title) : '';
+    const wrap = document.createElement('div');
+    wrap.id = 'crash-screen';
+    wrap.innerHTML = `
+      <div class="crash-card">
+        <div class="crash-title">This page is out of date.</div>
+        <p class="crash-body">Inner Dialogues was changed in another tab or window, so this one has stopped saving — otherwise it would write over that.</p>
+        <p class="crash-body">If you wrote something here in the last moment, copy it first. Then reload.</p>
+        <div class="crash-actions">
+          <button type="button" id="crash-export">copy this page</button>
+          <button type="button" id="crash-reload">reload</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    wrap.querySelector('#crash-reload').addEventListener('click', () => location.reload());
+    wrap.querySelector('#crash-export').addEventListener('click', () => {
+      navigator.clipboard.writeText(text)
+        .then(() => { wrap.querySelector('#crash-export').textContent = 'copied'; })
+        .catch(() => { wrap.querySelector('#crash-export').textContent = 'couldn’t copy'; });
+    });
   }
 
   // ── Toast + copy all ──
@@ -4955,6 +5077,10 @@
       const restored = await restoreSession();
       updateSetupArchiveLink();   // setup screen may need its archive entry point
       booted = true;
+      // Offline copy (sw.js). Optional: if it can't register, nothing changes.
+      if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      }
       if (!restored && !hasSeenExample()) showExample();
       if (storageBlocked && store === lsDriver) {
         showToast('this browser is blocking storage — nothing here will be saved, so export before you close', 9000);

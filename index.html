@@ -1496,13 +1496,14 @@
   /* Mobile-only affordances (notes button, sheet close) hidden on desktop. */
   .mobile-only { display: none !important; }
 
-  /* Overflow "⋯" menu — only appears once the header collapses (≤480px). */
+  /* Overflow "⋯" menu — phones only (≤480px), where it holds every control. */
   .overflow-only { display: none !important; }
-  #overflow-btn { font-size: 16px; letter-spacing: 0; line-height: 1; }
+  #overflow-btn { font-size: 16px; letter-spacing: 0; line-height: 1; padding: 4px 6px; }
+  #prompt-bar { position: relative; }
   #overflow-menu {
     display: none;
     position: absolute;
-    top: 42px;
+    top: calc(100% + 4px);
     right: 10px;
     z-index: 45;
     flex-direction: column;
@@ -1561,20 +1562,13 @@
        would otherwise sit under the home indicator. In a normal Safari tab the
        inset is 0 and this changes nothing. */
     .bottom { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
-    .app-top { gap: 6px; padding: 10px 66px 10px 12px; }
-    /* Theme and focus icons sit side by side in the top-right corner, below
-       the notch, with room reserved so neither covers the header or Prompt. */
-    #focus-btn { top: calc(env(safe-area-inset-top, 0px) + 11px); }
-    #theme-btn { top: calc(env(safe-area-inset-top, 0px) + 7px); right: 36px; }
-    #app.focus-mode #prompt-bar { padding-right: 72px; }
-    .header-controls { gap: 6px; }
-    .header-btn { padding: 4px 2px; font-size: 11px; }
-    /* Only reset and notes stay out here; the rest go under the ⋯ menu. */
-    #copy-btn, .export-wrap { display: none; }
+    /* On a phone there is one bar and it never changes: the prompt, Prompt,
+       and ⋯, which holds everything else. No title row, no notes, no focus
+       mode — past dialogues live on the home screen. */
+    .app-top, #focus-btn, #notes-panel, #notes-scrim { display: none !important; }
+    body.in-app #theme-btn { display: none; }
+    #app #prompt-bar, #app.focus-mode #prompt-bar { padding: 8px 8px 8px 18px; gap: 8px; }
     .overflow-only { display: inline-flex !important; }
-    /* The name is context, not a control — it gives up room first. */
-    #session-bar { max-width: 46%; }
-    #session-title { font-size: 11px; }
   }
 
   /* ── Keyboard focus ──
@@ -1586,8 +1580,10 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
+  /* Text fields already darken their border when focused; a ring on top
+     (which iPhone draws on every tap) just boxes them in. */
   .msg-input:focus-visible,
-  .name-fields input:focus-visible { outline-offset: 0; }
+  .name-fields input:focus-visible { outline: none; }
   .msg-text[contenteditable="true"]:focus-visible { outline-offset: 1px; }
 
   /* ── First-run example ──
@@ -1740,13 +1736,6 @@
         </div>
       </div>
       <button class="header-btn" id="reset-btn">reset</button>
-      <button class="header-btn overflow-only" id="overflow-btn" type="button" title="more" aria-label="more actions" aria-haspopup="true" aria-expanded="false">⋯</button>
-    </div>
-    <div id="overflow-menu" role="menu" aria-labelledby="overflow-btn">
-      <button id="ov-copy" type="button" role="menuitem">copy all</button>
-      <button id="ov-image" type="button" role="menuitem">export image</button>
-      <button id="ov-txt" type="button" role="menuitem">export text</button>
-      <button id="ov-all" type="button" role="menuitem">export everything</button>
     </div>
   </div>
   <button id="focus-btn" type="button" title="focus mode — hide the controls and notes" aria-label="focus mode">
@@ -1757,6 +1746,16 @@
     <div id="prompt-text" class="placeholder">press prompt for a question</div>
     <button id="prompt-clear" type="button" title="Clear prompt" aria-label="clear prompt">×</button>
     <button id="prompt-btn">Prompt</button>
+    <button class="header-btn overflow-only" id="overflow-btn" type="button" title="more" aria-label="more actions" aria-haspopup="true" aria-expanded="false">⋯</button>
+    <div id="overflow-menu" role="menu" aria-labelledby="overflow-btn">
+      <button id="ov-copy" type="button" role="menuitem">copy all</button>
+      <button id="ov-image" type="button" role="menuitem">export image</button>
+      <button id="ov-txt" type="button" role="menuitem">export text</button>
+      <button id="ov-all" type="button" role="menuitem">export everything</button>
+      <button id="ov-theme" type="button" role="menuitem">dark mode</button>
+      <button id="ov-home" type="button" role="menuitem">home</button>
+      <button id="ov-reset" type="button" role="menuitem">reset</button>
+    </div>
   </div>
 
   <div id="example-bar">
@@ -2329,6 +2328,12 @@
   proxyOverflow('ov-image', 'image-btn');
   proxyOverflow('ov-txt', 'save-btn');
   proxyOverflow('ov-all', 'export-all-btn');
+  proxyOverflow('ov-theme', 'theme-btn');
+  proxyOverflow('ov-reset', 'reset-btn');
+  document.getElementById('ov-home').addEventListener('click', () => {
+    closeOverflow();
+    goToSetup({ allowBack: !!current() });
+  });
 
   renderNameFields();
 
@@ -4661,6 +4666,7 @@
     document.body.classList.toggle('theme-dark', dark);
     themeBtn.innerHTML = dark ? SUN_ICON : MOON_ICON;
     themeBtn.title = dark ? 'switch to light' : 'switch to dark';
+    document.getElementById('ov-theme').textContent = dark ? 'light mode' : 'dark mode';
     try { localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light'); } catch (_) {}
   }
   themeBtn.addEventListener('click', () => setTheme(!document.body.classList.contains('theme-dark')));

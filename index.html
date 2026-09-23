@@ -200,7 +200,6 @@
       radial-gradient(44% 52% at 78% 72%, color-mix(in srgb, var(--bloom) calc(var(--bloom-strength) - 3%), transparent), transparent 70%);
     animation: ambientDrift 36s ease-in-out infinite alternate;
   }
-  body.focus-mode-on::before { animation-play-state: paused; }
 
   @keyframes ambientDrift {
     from { transform: translate3d(-2%, -1%, 0) scale(1.02); }
@@ -670,27 +669,6 @@
   .header-btn:hover { color: var(--ink); }
   .header-btn.active { color: var(--ink); }
 
-  /* ── Focus button (absolute icon, top-right of the #app card) ── */
-  #focus-btn {
-    position: absolute;
-    top: 11px;
-    right: 11px;
-    z-index: 10;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 4px;
-    color: var(--ink-faint);
-    opacity: 0.45;
-    transition: opacity 0.2s, color 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 0;
-  }
-  #focus-btn:hover { opacity: 1; color: var(--ink-muted); }
-  #focus-btn.active { color: var(--ink); opacity: 0.85; }
-
   /* ── Theme toggle — fixed at the very top-right of the viewport ── */
   #theme-btn {
     position: fixed;
@@ -711,7 +689,7 @@
   }
   #theme-btn:hover { opacity: 1; color: var(--ink); }
 
-  #focus-btn svg, #theme-btn svg {
+  #theme-btn svg {
     width: 13px;
     height: 13px;
     display: block;
@@ -774,11 +752,18 @@
     margin-bottom: 6px;
   }
 
-  /* ── Focus mode: hide top bar + notes panel entirely. Prompt bar reserves
-     right padding so the focus icon doesn't overlap the Prompt button. ── */
-  #app.focus-mode .app-top { display: none; }
-  #app.focus-mode #prompt-bar { padding-right: 40px; }
-  #app.focus-mode ~ #notes-panel { display: none !important; }
+  /* ── One bar, everywhere ──
+     The dialogue has a single bar that never changes: the prompt, Prompt,
+     and ⋯, which holds everything else. The old top row stays in the markup,
+     hidden — the ⋯ items click its buttons. Dark mode lives in ⋯ too, so the
+     corner icon is only on the home screen. */
+  .app-top { display: none !important; }
+  body.in-app #theme-btn { display: none; }
+  /* Notes are optional and start off; ⋯ → notes turns them on. (Narrower
+     than this, notes open as a sheet from the same item; phones have none.) */
+  @media (min-width: 881px) {
+    body:not(.notes-on) #notes-panel.visible { display: none; }
+  }
 
   /* Prompt bar */
   #prompt-bar {
@@ -1505,8 +1490,7 @@
   /* Mobile-only affordances (notes button, sheet close) hidden on desktop. */
   .mobile-only { display: none !important; }
 
-  /* Overflow "⋯" menu — phones only (≤480px), where it holds every control. */
-  .overflow-only { display: none !important; }
+  /* The "⋯" menu — holds every control except Prompt. */
   #overflow-btn { font-size: 16px; letter-spacing: 0; line-height: 1; padding: 4px 6px; }
   #prompt-bar { position: relative; }
   #overflow-menu {
@@ -1582,10 +1566,8 @@
     /* On a phone there is one bar and it never changes: the prompt, Prompt,
        and ⋯, which holds everything else. No title row, no notes, no focus
        mode — past dialogues live on the home screen. */
-    .app-top, #focus-btn, #notes-panel, #notes-scrim { display: none !important; }
-    body.in-app #theme-btn { display: none; }
-    #app #prompt-bar, #app.focus-mode #prompt-bar { padding: 8px 8px 8px 18px; gap: 8px; }
-    .overflow-only { display: inline-flex !important; }
+    #notes-panel, #notes-scrim, #ov-notes { display: none !important; }
+    #prompt-bar { padding: 8px 8px 8px 18px; gap: 8px; }
   }
 
   /* ── Keyboard focus ──
@@ -1638,7 +1620,6 @@
      dialogue is offered while it's on screen. */
   body.example-mode .header-controls,
   body.example-mode #archive-btn,
-  body.example-mode #focus-btn,
   body.example-mode #prompt-bar,
   body.example-mode #notes-panel,
   body.example-mode .speaker-row { display: none !important; }
@@ -1755,20 +1736,18 @@
       <button class="header-btn" id="reset-btn">reset</button>
     </div>
   </div>
-  <button id="focus-btn" type="button" title="focus mode — hide the controls and notes" aria-label="focus mode">
-    <svg viewBox="0 0 16 16"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"/></svg>
-  </button>
 
   <div id="prompt-bar">
     <div id="prompt-text" class="placeholder">press prompt for a question</div>
     <button id="prompt-clear" type="button" title="Clear prompt" aria-label="clear prompt">×</button>
     <button id="prompt-btn">Prompt</button>
-    <button class="header-btn overflow-only" id="overflow-btn" type="button" title="more" aria-label="more actions" aria-haspopup="true" aria-expanded="false">⋯</button>
+    <button class="header-btn" id="overflow-btn" type="button" title="more" aria-label="more actions" aria-haspopup="true" aria-expanded="false">⋯</button>
     <div id="overflow-menu" role="menu" aria-labelledby="overflow-btn">
       <button id="ov-copy" type="button" role="menuitem">copy all</button>
       <button id="ov-image" type="button" role="menuitem">export image</button>
       <button id="ov-txt" type="button" role="menuitem">export text</button>
       <button id="ov-all" type="button" role="menuitem">export everything</button>
+      <button id="ov-notes" type="button" role="menuitem">notes</button>
       <button id="ov-theme" type="button" role="menuitem">dark mode</button>
       <button id="ov-home" type="button" role="menuitem">home</button>
       <button id="ov-reset" type="button" role="menuitem">reset</button>
@@ -2352,9 +2331,9 @@
   document.getElementById('notes-close').addEventListener('click', closeNotesSheet);
   notesScrim.addEventListener('click', closeNotesSheet);
 
-  // ── Mobile overflow menu ──
-  // On phones the copy/export actions collapse into a ⋯ dropdown; its items
-  // just proxy to the real (hidden) header buttons so there's one source of truth.
+  // ── ⋯ menu ──
+  // Every control except Prompt lives here. Most items just click the real
+  // (hidden) old top-row buttons, so there's one source of truth.
   const overflowBtn = document.getElementById('overflow-btn');
   const overflowMenu = document.getElementById('overflow-menu');
   function closeOverflow() { overflowMenu.classList.remove('open'); }
@@ -4820,30 +4799,25 @@
     setTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   }
 
-  // ── Focus mode ──
-  const FOCUS_MODE_KEY = 'inner_dialogues_focus_mode';
-  const focusBtn = document.getElementById('focus-btn');
-  // OFF: 4 small panels (multi-panel view — click to focus to one).
-  // ON: single contained square with inner dot (focused — click to exit back to multi-panel).
-  const FOCUS_ICON_IN  = `<svg viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>`;
-  const FOCUS_ICON_OUT = `<svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1.5"/><rect x="7" y="7" width="2" height="2" fill="currentColor" stroke="none"/></svg>`;
-  // `persist: false` changes the mode for now without overwriting the user's
-  // preference — the example turns the chrome on temporarily, and someone who
-  // lives in focus mode shouldn't find it switched off for having looked.
-  function setFocusMode(on, { persist = true } = {}) {
-    appEl.classList.toggle('focus-mode', on);
-    document.body.classList.toggle('focus-mode-on', on);
-    focusBtn.innerHTML = on ? FOCUS_ICON_IN : FOCUS_ICON_OUT;
-    focusBtn.title = on ? 'exit focus mode' : 'focus mode — hide the controls and notes';
-    focusBtn.classList.toggle('active', on);
-    if (!persist) return;
-    try { localStorage.setItem(FOCUS_MODE_KEY, on ? '1' : '0'); } catch (_) {}
+  // ── Notes (optional) ──
+  // Off until turned on from ⋯. Wide screens show them beside the dialogue;
+  // narrower ones open them as a sheet; phones don't have them.
+  const NOTES_ON_KEY = 'inner_dialogues_notes_on';
+  const ovNotes = document.getElementById('ov-notes');
+  function setNotesOn(on) {
+    document.body.classList.toggle('notes-on', on);
+    try { localStorage.setItem(NOTES_ON_KEY, on ? '1' : '0'); } catch (_) {}
   }
-  focusBtn.addEventListener('click', () => {
-    setFocusMode(!appEl.classList.contains('focus-mode'));
+  ovNotes.addEventListener('click', () => {
+    closeOverflow();
+    if (window.innerWidth <= 880) openNotesSheet();
+    else setNotesOn(!document.body.classList.contains('notes-on'));
   });
-  // Default to focus mode unless the user has explicitly turned it off before
-  if (lsGet(FOCUS_MODE_KEY) !== '0') setFocusMode(true);
+  overflowBtn.addEventListener('click', () => {
+    const shown = window.innerWidth > 880 && document.body.classList.contains('notes-on');
+    ovNotes.textContent = shown ? 'hide notes' : 'notes';
+  });
+  setNotesOn(lsGet(NOTES_ON_KEY) === '1');
 
   document.getElementById('copy-btn').addEventListener('click', copyAll);
 
@@ -5041,7 +5015,6 @@
     msgInputEl.placeholder = 'start your own to write here';
     msgInputEl.readOnly = true;
     showApp();
-    setFocusMode(false, { persist: false });   // the example is the one time the chrome helps
     // Read it from the beginning, not the end. Deferred because the scroll
     // position only means anything once layout has settled.
     msgsEl.scrollTop = 0;
@@ -5059,7 +5032,6 @@
     msgsEl.innerHTML = '';
     msgInputEl.readOnly = false;
     msgInputEl.placeholder = 'Write something…';
-    setFocusMode(lsGet(FOCUS_MODE_KEY) !== '0', { persist: false });
     if (toSetup) goToSetup();
   }
 

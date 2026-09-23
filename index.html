@@ -306,8 +306,8 @@
   .add-field-btn:hover { color: var(--ink-muted); }
   .add-field-btn:hover::after { width: 100%; }
 
-  /* Begin on its own line; the quieter ways in sit under it, wrapping rather
-     than squeezing once there are three of them. */
+  /* Begin on its own line; the quieter ways in (example, load, past
+     dialogues) sit in a small "more" menu under it. */
   .setup-actions {
     display: flex;
     flex-direction: column;
@@ -315,12 +315,40 @@
     gap: 16px;
   }
   .setup-secondary {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
     justify-content: center;
-    gap: 6px 18px;
   }
+  #setup-more-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 70;
+    flex-direction: column;
+    min-width: 170px;
+    padding: 5px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(74, 54, 34, 0.14);
+  }
+  #setup-more-menu.open { display: flex; }
+  #setup-more-menu button {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    padding: 8px 10px;
+    border-radius: 6px;
+  }
+  #setup-more-menu button:hover { background: rgba(0,0,0,0.05); color: var(--ink); }
   .setup-actions .start-btn { align-self: center; }
   .load-convo-btn { white-space: nowrap; }
 
@@ -1666,9 +1694,12 @@
     <div class="setup-actions">
       <button class="start-btn" onclick="startChat()">Begin →</button>
       <div class="setup-secondary">
-        <button class="load-convo-btn" id="example-btn">see an example</button>
-        <button class="load-convo-btn" id="load-convo-btn">load conversation</button>
-        <button class="load-convo-btn" id="setup-archive-btn" style="display:none">past dialogues</button>
+        <button class="load-convo-btn" id="setup-more-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="setup-more-menu">more</button>
+        <div id="setup-more-menu" role="menu" aria-labelledby="setup-more-btn">
+          <button id="example-btn" type="button" role="menuitem">see an example</button>
+          <button id="load-convo-btn" type="button" role="menuitem">load conversation</button>
+          <button id="setup-archive-btn" type="button" role="menuitem" style="display:none">past dialogues</button>
+        </div>
       </div>
     </div>
     <input type="file" id="load-convo-file" accept=".txt" hidden />
@@ -1687,7 +1718,7 @@
     <p>on iPhone, add this to your home screen so nothing is cleared</p>
   </div>
   <p class="setup-privacy">your words never leave this device</p>
-  <p class="setup-copyright">© Social Sage</p>
+  <p class="setup-copyright">© Tobias Wade</p>
 </div>
 
 <!-- Chat App -->
@@ -4667,6 +4698,28 @@
   if (lsGet(FOCUS_MODE_KEY) !== '0') setFocusMode(true);
 
   document.getElementById('copy-btn').addEventListener('click', copyAll);
+
+  // ── Setup "more" menu ──
+  const setupMoreBtn = document.getElementById('setup-more-btn');
+  const setupMoreMenu = document.getElementById('setup-more-menu');
+  function closeSetupMore() {
+    setupMoreMenu.classList.remove('open');
+    setupMoreBtn.setAttribute('aria-expanded', 'false');
+  }
+  setupMoreBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const open = !setupMoreMenu.classList.contains('open');
+    setupMoreMenu.classList.toggle('open', open);
+    setupMoreBtn.setAttribute('aria-expanded', String(open));
+    if (open) setupMoreMenu.querySelector('button')?.focus();
+  });
+  setupMoreMenu.addEventListener('click', closeSetupMore);
+  document.addEventListener('click', e => {
+    if (!setupMoreMenu.contains(e.target) && e.target !== setupMoreBtn) closeSetupMore();
+  });
+  setupMoreMenu.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeSetupMore(); setupMoreBtn.focus(); }
+  });
 
   // ── Export dropdown ──
   const exportBtn = document.getElementById('export-btn');

@@ -166,6 +166,9 @@
   /* The keyboard and anything showing behind the page take their colours
      from the root, so it follows the app's theme, not just the phone's. */
   html { background: #f5f0e8; }
+  /* No double-tap zoom anywhere (pinch still works). Zero specificity, so the
+     message drag (pan-y) and the sketch canvas (none) keep their own rules. */
+  * { touch-action: manipulation; }
   html:has(body.theme-dark) { background: #17130f; color-scheme: dark; }
 
   body {

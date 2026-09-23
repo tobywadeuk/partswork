@@ -1533,7 +1533,12 @@
        would otherwise sit under the home indicator. In a normal Safari tab the
        inset is 0 and this changes nothing. */
     .bottom { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
-    .app-top { gap: 6px; padding: 10px 34px 10px 12px; }
+    .app-top { gap: 6px; padding: 10px 66px 10px 12px; }
+    /* Theme and focus icons sit side by side in the top-right corner, below
+       the notch, with room reserved so neither covers the header or Prompt. */
+    #focus-btn { top: calc(env(safe-area-inset-top, 0px) + 11px); }
+    #theme-btn { top: calc(env(safe-area-inset-top, 0px) + 7px); right: 36px; }
+    #app.focus-mode #prompt-bar { padding-right: 72px; }
     .header-controls { gap: 6px; }
     .header-btn { padding: 4px 2px; font-size: 11px; }
     /* Only reset and notes stay out here; the rest go under the ⋯ menu. */
@@ -3601,8 +3606,16 @@
   // previous one. Undo closures capture direct object references (not indexes
   // into `current()`), so they stay correct even if the user switches or
   // archives sessions inside the window.
+  // Toasts sit just above the writing row, so they never cover the input or
+  // the send button. Falls back to the CSS default when the app isn't showing.
+  function placeToast(el) {
+    const bottom = document.querySelector('#app .bottom');
+    const r = bottom && bottom.getBoundingClientRect();
+    el.style.bottom = (r && r.height) ? (window.innerHeight - r.top + 12) + 'px' : '';
+  }
   function showUndoToast(label) {
     document.getElementById('undo-toast-label').textContent = label;
+    placeToast(document.getElementById('undo-toast'));
     document.getElementById('undo-toast').classList.add('visible');
   }
   function hideUndoToast() {
@@ -4563,6 +4576,7 @@
   function showToast(msg, ms = 2200) {
     const t = document.getElementById('toast');
     t.textContent = msg;
+    placeToast(t);
     t.style.opacity = '1';
     t.style.transform = 'translateX(-50%) translateY(0)';
     if (toastTimer) clearTimeout(toastTimer);

@@ -163,6 +163,11 @@
     color-scheme: dark;
   }
 
+  /* The keyboard and anything showing behind the page take their colours
+     from the root, so it follows the app's theme, not just the phone's. */
+  html { background: #f5f0e8; }
+  html:has(body.theme-dark) { background: #17130f; color-scheme: dark; }
+
   body {
     font-family: 'Lora', Georgia, serif;
     background: linear-gradient(165deg, var(--bg), var(--bg-2));
@@ -1555,7 +1560,14 @@
     body { padding: 0; align-items: center; justify-content: flex-start; padding-top: 40px; min-height: 100dvh; }
     .setup-wrap { padding: 0 16px; width: 100%; max-width: 100%; box-sizing: border-box; }
     #setup { border-radius: var(--radius); padding: 36px 24px 32px; max-width: 100%; }
-    #app { position: fixed; bottom: 0; left: 0; right: 0; border-radius: 0; height: 100dvh; max-width: 100%; padding-top: env(safe-area-inset-top, 0px); box-sizing: border-box; }
+    /* iPhone doesn't shrink the page for the keyboard — it slides the page
+       under it, and dragging then pulled the app away and showed a blank gap.
+       So the app is pinned to whatever is visible (--vv-* set from
+       visualViewport in the script), and the page itself can't scroll. */
+    #app { position: fixed; top: 0; left: 0; right: 0; border-radius: 0; height: var(--vv-height, 100dvh); transform: translateY(var(--vv-top, 0px)); max-width: 100%; padding-top: env(safe-area-inset-top, 0px); box-sizing: border-box; }
+    html:has(body.in-app), body.in-app { overflow: hidden; height: 100%; }
+    body.in-app { padding-top: 0; min-height: 0; }
+    .messages { overscroll-behavior: contain; }
     .msg-wrap { max-width: 82%; }
     .msg-input, .name-row input, .speaker-new-input { font-size: 16px; }
     /* Added to the home screen the app runs full-bleed, so the writing row
@@ -4667,6 +4679,10 @@
     themeBtn.innerHTML = dark ? SUN_ICON : MOON_ICON;
     themeBtn.title = dark ? 'switch to light' : 'switch to dark';
     document.getElementById('ov-theme').textContent = dark ? 'light mode' : 'dark mode';
+    // Status bar colour follows the app's theme, not the phone's.
+    document.querySelectorAll('meta[name="theme-color"]').forEach(m => {
+      m.setAttribute('content', dark ? '#17130f' : '#f5f0e8');
+    });
     try { localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light'); } catch (_) {}
   }
   themeBtn.addEventListener('click', () => setTheme(!document.body.classList.contains('theme-dark')));
@@ -4704,6 +4720,21 @@
   if (lsGet(FOCUS_MODE_KEY) !== '0') setFocusMode(true);
 
   document.getElementById('copy-btn').addEventListener('click', copyAll);
+
+  // ── Keep the app on the visible part of the screen (phones) ──
+  // With the keyboard up, iPhone lets the page slide around underneath it.
+  // Tracking the visual viewport keeps the app filling exactly what's visible.
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const rootStyle = document.documentElement.style;
+    const fitToViewport = () => {
+      rootStyle.setProperty('--vv-height', `${vv.height}px`);
+      rootStyle.setProperty('--vv-top', `${vv.offsetTop}px`);
+    };
+    vv.addEventListener('resize', fitToViewport);
+    vv.addEventListener('scroll', fitToViewport);
+    fitToViewport();
+  }
 
   // ── Setup "more" menu ──
   const setupMoreBtn = document.getElementById('setup-more-btn');

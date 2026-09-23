@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>Inner Dialogues</title>
 <meta name="description" content="A quiet space for writing the conversation between parts of yourself. Name each voice, then speak as them in turn. Everything stays on your device." />
 
@@ -166,9 +166,10 @@
   /* The keyboard and anything showing behind the page take their colours
      from the root, so it follows the app's theme, not just the phone's. */
   html { background: #f5f0e8; }
-  /* No double-tap zoom anywhere (pinch still works). Zero specificity, so the
-     message drag (pan-y) and the sketch canvas (none) keep their own rules. */
-  * { touch-action: manipulation; }
+  /* No zooming of any kind — this is one of several layers (see "No zoom" in
+     the script). Scrolling only. Zero specificity, so the message drag (pan-y)
+     and the sketch canvas (none) keep their own rules. */
+  * { touch-action: pan-x pan-y; }
   html:has(body.theme-dark) { background: #17130f; color-scheme: dark; }
 
   body {
@@ -4723,6 +4724,37 @@
   if (lsGet(FOCUS_MODE_KEY) !== '0') setFocusMode(true);
 
   document.getElementById('copy-btn').addEventListener('click', copyAll);
+
+  // ── No zoom ──
+  // The layout falls apart zoomed in, so zoom is blocked several ways at once;
+  // if iPhone ignores one, the next catches it:
+  //   1. viewport meta: maximum-scale=1, user-scalable=no (honoured when added
+  //      to the home screen, and it stops the zoom-on-tap into a text field)
+  //   2. CSS touch-action: pan-x pan-y on everything (no double-tap, no pinch)
+  //   3. Safari's own pinch gestures cancelled here
+  //   4. any two-finger move cancelled here
+  //   5. if the page ends up zoomed anyway, it's snapped back to 100%
+  const cancel = e => e.preventDefault();
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(type =>
+    document.addEventListener(type, cancel, { passive: false }));
+  document.addEventListener('touchmove', e => {
+    if (e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+  if (window.visualViewport) {
+    const viewportMeta = document.querySelector('meta[name="viewport"]');
+    const VIEWPORT = viewportMeta.getAttribute('content');
+    let snapping = false;
+    window.visualViewport.addEventListener('resize', () => {
+      if (snapping || window.visualViewport.scale <= 1.01) return;
+      // Rewriting the tag makes Safari re-apply maximum-scale=1.
+      snapping = true;
+      viewportMeta.setAttribute('content', VIEWPORT.replace('maximum-scale=1.0', 'maximum-scale=1.01'));
+      requestAnimationFrame(() => {
+        viewportMeta.setAttribute('content', VIEWPORT);
+        snapping = false;
+      });
+    });
+  }
 
   // ── Keep the app on the visible part of the screen (phones) ──
   // With the keyboard up, iPhone lets the page slide around underneath it.
